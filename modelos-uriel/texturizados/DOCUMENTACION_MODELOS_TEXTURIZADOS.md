@@ -91,7 +91,8 @@ El iluminador de estadio está guardado como `Iluminador_Estadio.blend` en `mode
 
 - [Portería base](../modelos%20base/Porteria.blend)
 - [Jugador y árbitro base](../modelos%20base/JUGADOR%20Y%20ARBITRO.blend)
+- [Iluminador de estadio base, sin materiales](../modelos%20base/Iluminador_Estadio.blend)
 
-La versión base del iluminador de estadio aún está pendiente de agregar.
+La copia base del iluminador conserva la geometría del modelo y no tiene materiales asignados. La versión texturizada está disponible por separado en la carpeta principal de `modelos-uriel`.
 
 
