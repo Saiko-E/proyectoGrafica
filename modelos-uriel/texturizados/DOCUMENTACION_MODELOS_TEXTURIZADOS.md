@@ -89,8 +89,3 @@ El iluminador de estadio está guardado como `Iluminador_Estadio.blend` en `mode
 
 ## Créditos y estado de las evidencias
 
-**Texturizado/documentación:** Uriel Guerrero.  
-**Modelos del jugador y árbitro:** descargados; la fuente original debe añadirse cuando se tenga disponible.
-**Texturas de tela:** Poly Haven, recursos CC0 enlazados arriba.
-
-La captura de la portería muestra su modelo con materiales. Las muestras verdes y amarillas son ilustraciones de tejido, no capturas de las camisetas dentro de Blender. Los mapas de relieve sí están aplicados a los torsos en el proyecto de Blender; las muestras solo ilustran el patrón y color de cada tela.
