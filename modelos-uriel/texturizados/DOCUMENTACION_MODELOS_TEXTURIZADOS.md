@@ -87,5 +87,5 @@ El iluminador de estadio está guardado como `Iluminador_Estadio.blend` en `mode
 - [Jugador y árbitro texturizados](../JUGADOR_ARBITRO_TEXTURIZADOS.blend)
 - [Iluminador de estadio texturizado](../Iluminador_Estadio.blend)
 
-## Créditos y estado de las evidencias
+
 
