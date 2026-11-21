@@ -1,0 +1,27 @@
+Escena integrada generada: /Users/ur182/Desktop/proyectoGrafica/integration/Escenario_Deportivo_Integrado.blend
+Rango: 1-420, 24 fps. Marcadores: estadio, carrera, gol, señal, luces, cierre.
+Acciones desplazadas a NLA:
+  Balon_Gol | Balon_GolAction.005 | origen 1-30 | inicio 126
+  Jugador CHICHARITO Rig | Jugador CHICHARITO Carrera.004 | origen 1-17 | inicio 55
+  Arbitro silbato | Arbitro silbatoAction.004 | origen 1-16 | inicio 178
+  Arbitro Rig | Arbitro Señal de falta.004 | origen 1-16 | inicio 178
+  Arbitro mano izquierdo | Arbitro mano izquierdoAction.004 | origen 1-16 | inicio 178
+  Arbitro brazo izquierdo | Arbitro brazo izquierdoAction.004 | origen 1-16 | inicio 178
+  Arbitro antebrazo izquierdo | Arbitro antebrazo izquierdoAction.004 | origen 1-16 | inicio 178
+  Food cart_wheel small.002 | Food cart_wheel small.002Action.002 | origen 1-170 | inicio 245
+  Food cart_wheel small.001 | Food cart_wheel small.001Action.002 | origen 1-60 | inicio 245
+  Food cart_wheel big | Food cart_wheel bigAction.002 | origen 1-60 | inicio 245
+  Control_Carrito | Control_CarritoAction.002 | origen 1-170 | inicio 245
+Recursos importados: estadio, portería, jugador/árbitro, reflectores, marcador, bancas, autobús, Goyo, esquina, carritos, podio y trofeo.
+
+Corrección visual: cámara inicial enfocada a personajes; encuadres de carrera, gol y árbitro; cuatro banderines, uno en cada esquina de cancha.
+
+Corrección visual: cámara inicial enfocada a personajes; encuadres de carrera, gol y árbitro; cuatro banderines, uno en cada esquina de cancha.
+
+Corrección visual: cámara inicial enfocada a personajes; encuadres de carrera, gol y árbitro; cuatro banderines, uno en cada esquina de cancha.
+
+Corrección visual: cámara inicial enfocada a personajes; encuadres de carrera, gol y árbitro; cuatro banderines, uno en cada esquina de cancha.
+
+Corrección visual: cámara inicial enfocada a personajes; encuadres de carrera, gol y árbitro; cuatro banderines, uno en cada esquina de cancha.
+
+Corrección visual: cámara inicial enfocada a personajes; encuadres de carrera, gol y árbitro; cuatro banderines, uno en cada esquina de cancha.
