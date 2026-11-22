@@ -1,0 +1,19 @@
+# Coordenadas OpenGL (Y arriba) donde dibujar los digitos sobre marcador_sin_numeros.obj
+# Cada digito_X.obj mide 1 de alto, base en y=0, origen de la fuente en x=0 (con su margen lateral), mirando a +Z.
+# model = tablero * translate(origen + vec3(avance_acumulado*altura, 0, 0)) * scale(altura)
+# nombre  origen_x origen_y origen_z  altura
+Counter_local -4.299052 6.318021 0.687358 1.494032
+Counter_visita 3.523267 6.318021 0.687358 1.494032
+Screen_Clock -1.091630 6.328420 0.625312 0.882659
+# avance horizontal de cada caracter (multiplicar por la altura)
+avance_0 0.760000
+avance_1 0.760000
+avance_2 0.760000
+avance_3 0.760000
+avance_4 0.760000
+avance_5 0.760000
+avance_6 0.760000
+avance_7 0.760000
+avance_8 0.760000
+avance_9 0.760000
+avance_dos_puntos 0.311429

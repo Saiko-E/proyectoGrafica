@@ -1,0 +1,5 @@
+# Pivote del cabezal en coordenadas OpenGL (Y arriba). camara_cabezal.obj esta centrado en (0,0,0)
+# En reposo el lente apunta a +X. Para seguir al balon (objetivo t, pivote p):
+#   d = t - p; yaw = atan2(-d.z, d.x); pitch = atan2(d.y, sqrt(d.x*d.x + d.z*d.z))
+#   model = translate(p) * rotate(yaw, Y) * rotate(pitch, Z)
+2.417727 5.955745 -0.449932
