@@ -1,0 +1,32 @@
+# Blender 5.2.2 LTS MTL File: 'Banca_Dia_Noche.blend'
+# www.blender.org
+
+newmtl Material
+Ns 462.399994
+Ka 0.750000 0.750000 0.750000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+map_Kd tubo.png
+
+newmtl Material.002
+Ns 270.399994
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd asiento.jpg
+
+newmtl Piso_|_cambia_con_la_luz
+Ns 32.400002
+Ka 1.000000 1.000000 1.000000
+Kd 0.039067 0.050941 0.085017
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
