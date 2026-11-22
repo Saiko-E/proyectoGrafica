@@ -1,0 +1,7 @@
+# Pivotes de ruedas (OpenGL, Y arriba). Cada rueda .obj esta centrada en (0,0,0).
+# model = cuerpo * translate(pivote) * rotate(-distancia/radio, vec3(0,0,1)); delanteras ademas rotate(giro, vec3(0,1,0))
+# radio 0.22
+rueda_tras_der -0.7800 0.2200 0.4500
+rueda_tras_izq -0.7800 0.2200 -0.4500
+rueda_del_der 0.7800 0.2200 0.4500
+rueda_del_izq 0.7800 0.2200 -0.4500
