@@ -488,9 +488,10 @@ void construirCancha()
 
 // Representacion sencilla de un objeto estatico con forma de caja.
 struct Caja { glm::vec3 centro, escala, color; };
+struct PosicionPublico { glm::vec3 posicion; float orientacion, tamano; };
 // Geometria que se envia a OpenGL y objetos auxiliares del escenario.
 std::vector<float> geometriaEscenario;
-std::vector<std::pair<glm::vec3, float>> posicionesPublico;
+std::vector<PosicionPublico> posicionesPublico;
 std::vector<Caja> cajas;
 std::vector<Caja> vallasPublicidad;
 std::vector<Caja> fondosTifo;
@@ -697,20 +698,31 @@ void construirEscenario() {
         vertices[i + 1] += 0.06f;
     }
     glm::vec3 gris(0.28f, 0.32f, 0.38f), concreto(0.42f, 0.43f, 0.40f), blanco(0.96f);
-    // Público en anillos ovalados, siguiendo las nueve filas inferiores del OBJ.
-    for (int fila = 0; fila < 9; ++fila) {
-        int nivel = fila + 5;
-        float radioX = (77.0f + nivel * 0.9f) * ESCALA_ESTADIO;
-        float radioZ = (52.0f + nivel * 0.9f) * ESCALA_ESTADIO;
-        float altura = nivel * 0.45f * ESCALA_ESTADIO;
+    // Conserva un pasillo libre junto al campo y distribuye público en los dos niveles ovalados.
+    auto agregarAnilloPublico = [&](float radioX, float radioZ, float altura, float separacion, float tamano) {
         float perimetro = PI * (3.0f * (radioX + radioZ) - sqrt((3.0f * radioX + radioZ) * (radioX + 3.0f * radioZ)));
-        int cantidad = (int)(perimetro / 5.5f);
+        int cantidad = (int)(perimetro / separacion);
         for (int i = 0; i < cantidad; ++i) {
             float angulo = 2.0f * PI * i / cantidad;
             glm::vec3 posicion(radioX * cos(angulo), altura, radioZ * sin(angulo));
             float orientacion = glm::degrees((float)atan2(-cos(angulo), -sin(angulo)));
-            posicionesPublico.emplace_back(posicion, orientacion);
+            posicionesPublico.push_back({ posicion, orientacion, tamano });
         }
+    };
+    for (int nivel = 5; nivel <= 20; ++nivel) {
+        agregarAnilloPublico((77.0f + nivel * 0.9f) * ESCALA_ESTADIO,
+            (52.0f + nivel * 0.9f) * ESCALA_ESTADIO,
+            nivel * 0.45f * ESCALA_ESTADIO, nivel <= 13 ? 5.5f : 7.0f, 3.2f);
+    }
+    // Las filas superiores siguen la malla del OBJ hasta el borde de la cubierta.
+    for (int nivel = 1; nivel <= 19; ++nivel) {
+        float altura = (9.0f + nivel * 0.5f) * ESCALA_ESTADIO;
+        float tamano = 19.6f * ESCALA_ESTADIO - altura - 0.1f;
+        if (tamano > 3.2f) tamano = 3.2f;
+        if (tamano < 1.6f) tamano = 1.6f;
+        agregarAnilloPublico((95.0f + nivel) * ESCALA_ESTADIO,
+            (70.0f + nivel) * ESCALA_ESTADIO,
+            altura, 8.0f, tamano);
     }
     // Torre de iluminacion y luminarias encendidas/apagadas por tecla F.
     for (int lado : { -1, 1 }) {
@@ -1583,7 +1595,7 @@ void main() {
             };
         for (size_t i = 0; i < posicionesPublico.size(); ++i) {
             bool azul = i % 2 == 0;
-            dibujaJugadorCompleto(crearRaizJugador(posicionesPublico[i].first, posicionesPublico[i].second, 3.2f),
+            dibujaJugadorCompleto(crearRaizJugador(posicionesPublico[i].posicion, posicionesPublico[i].orientacion, posicionesPublico[i].tamano),
                 azul ? colorCruzAzul : colorAtlas, azul ? texturaCruzAzul : texturaAtlas);
         }
         if (!primeraPersona) {
