@@ -527,6 +527,7 @@ float rumboAutobus = 90.0f;
 bool camaraAutobus = false;
 glm::vec3 arbitro(7.0f, 0.0f, -4.0f);
 float tiempoAnimacion = 0.0f;
+float tiempoCelebracionPublico = 0.0f;
 
 // Keyframes del balon: tiempo, avance entre origen y porteria, altura y desvio lateral.
 // Cada keyframe del balon especifica un instante y su posicion relativa al tiro:
@@ -1262,6 +1263,7 @@ void main() {
     // 7. Ciclo principal: mido el tiempo, proceso entrada, actualizo estado y dibujo.
     while (!glfwWindowShouldClose(window)) {
         double ahora = glfwGetTime(); float dt = (float)glm::clamp(ahora - anterior, 0.0, 0.05); anterior = ahora; glfwPollEvents();
+        tiempoCelebracionPublico = glm::max(0.0f, tiempoCelebracionPublico - dt);
         float yaw = glm::radians(anguloMouseX); glm::vec3 frente = glm::normalize(glm::vec3(cos(yaw), 0, sin(yaw)));
         glm::vec3 derecha = glm::normalize(glm::cross(frente, glm::vec3(0, 1, 0)));
         float velocidadJugador = primeraPersona ? 9.0f : 8.0f;
@@ -1334,6 +1336,7 @@ void main() {
                 if (balonEnMovimiento && cruzaLineaGol) {
                     if (fabs(posicionBalonManual.z) <= 3.65f && posicionBalonManual.y <= 2.44f) {
                         ++golesLocal;
+                        tiempoCelebracionPublico = 3.2f;
                         posicionBalonManual.x = signoPorteria * 34.2f;
                         std::cout << "GOOOL. Marcador local: " << golesLocal << " - visitante: " << golesVisita << std::endl;
                     }
@@ -1370,6 +1373,7 @@ void main() {
             // El marcador cambia justo cuando el balon cruza el plano de gol.
             if (!marcadorJugadaActualizado && tiempoAnimacion >= 5.22f) {
                 golesLocal = (golesLocal + 1) % 100;
+                tiempoCelebracionPublico = 3.2f;
                 marcadorJugadaActualizado = true;
                 std::cout << "GOL. Marcador local: " << golesLocal << " - visitante: " << golesVisita << std::endl;
             }
@@ -1633,8 +1637,31 @@ void main() {
             };
         for (size_t i = 0; i < posicionesPublico.size(); ++i) {
             bool azul = i % 2 == 0;
-            dibujaJugadorCompleto(crearRaizJugador(posicionesPublico[i].posicion, posicionesPublico[i].orientacion, posicionesPublico[i].tamano),
-                azul ? colorCruzAzul : colorAtlas, azul ? texturaCruzAzul : texturaAtlas);
+            const glm::vec3& uniformePublico = azul ? colorCruzAzul : colorAtlas;
+            GLuint texturaPublico = azul ? texturaCruzAzul : texturaAtlas;
+            glm::mat4 raizPublico = crearRaizJugador(posicionesPublico[i].posicion, posicionesPublico[i].orientacion, posicionesPublico[i].tamano);
+            if (tiempoCelebracionPublico > 0.0f) {
+                float fase = 3.2f - tiempoCelebracionPublico + (float)i * 0.19f;
+                float salto = fabs(sin(fase * 10.0f)) * glm::clamp(tiempoCelebracionPublico / 0.35f, 0.0f, 1.0f) * 1.15f;
+                raizPublico = glm::translate(raizPublico, glm::vec3(0.0f, salto, 0.0f));
+                modelos[CUERPO_JUGADOR].dibujarConMatriz(programaModelos, vista, proy, raizPublico, reflectores, uniformePublico, true, texturaPublico);
+                float brazosArriba = 145.0f + 15.0f * sin(fase * 10.0f);
+                glm::mat4 brazoD = giroArticulacion(hombroDer, brazosArriba, glm::vec3(0, 0, 1));
+                glm::mat4 brazoI = giroArticulacion(hombroIzq, -brazosArriba, glm::vec3(0, 0, 1));
+                glm::mat4 codoD = giroArticulacion(codoDer, -35.0f, glm::vec3(0, 0, 1));
+                glm::mat4 codoI = giroArticulacion(codoIzq, 35.0f, glm::vec3(0, 0, 1));
+                auto dibujaPiezaPublico = [&](int pieza, const glm::mat4& matriz) {
+                    modelos[pieza].dibujarConMatriz(programaModelos, vista, proy, matriz, reflectores, uniformePublico, true, texturaPublico);
+                };
+                dibujaPiezaPublico(BRAZO_SUP_DER, raizPublico * brazoD);
+                dibujaPiezaPublico(BRAZO_INF_DER, raizPublico * brazoD * codoD);
+                dibujaPiezaPublico(BRAZO_SUP_IZQ, raizPublico * brazoI);
+                dibujaPiezaPublico(BRAZO_INF_IZQ, raizPublico * brazoI * codoI);
+                for (int pieza : { MUSLO_DER, PANTORRILLA_DER, PIE_DER, MUSLO_IZQ, PANTORRILLA_IZQ, PIE_IZQ })
+                    dibujaPiezaPublico(pieza, raizPublico);
+            } else {
+                dibujaJugadorCompleto(raizPublico, uniformePublico, texturaPublico);
+            }
         }
         if (!primeraPersona) {
             modelos[CUERPO_JUGADOR].dibujarConMatriz(programaModelos, vista, proy, raizJugador, reflectores, colorAtlas, true, texturaAtlas);
