@@ -1,0 +1,9 @@
+# Pivotes de ruedas en coordenadas OpenGL (Y arriba), mismas unidades que carrito_cuerpo.obj
+# Cada rueda .obj esta centrada en (0,0,0). Dibujar: model = cuerpo * translate(pivote) * rotate(angulo, eje)
+# eje de giro (rodar): Z en OpenGL   |   rodajas: ademas giran sobre Y para orientarse
+# nombre  x  y  z
+rueda_grande_1 -20.8817 6.8290 -36.3700
+rueda_grande_2 -20.8817 6.8290 2.7050
+rodaja_1 25.1108 2.9500 -8.3300
+rodaja_2 25.1110 2.9500 -25.9000
+# radio_rueda_grande 7.0649

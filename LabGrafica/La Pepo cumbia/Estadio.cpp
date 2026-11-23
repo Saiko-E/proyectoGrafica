@@ -1042,6 +1042,7 @@ uniform vec3 materialColor;
 uniform vec3 teamColor;
 uniform int teamColorable;
 uniform int hasTexture;
+uniform float materialAlpha;   // 'd' del MTL (vidrio, policarbonato); 1 = opaco
 uniform int lamps;
 uniform vec3 pointLightPos;
 uniform vec3 pointLightColor;
@@ -1096,7 +1097,10 @@ void main() {
                        * (1.0 - smoothstep(0.10, 0.36, base.r))
                        * (1.0 - smoothstep(0.08, 0.30, base.b))
                        * smoothstep(1.08, 1.35, base.g / (base.r + 0.005))
-                       * smoothstep(1.08, 1.35, base.g / (base.b + 0.005));
+                       * smoothstep(1.08, 1.35, base.g / (base.b + 0.005))
+                       // los modelos realistas ya traen su textura horneada (con franjas de corte en el
+                       // cesped): el cesped procedural solo se aplica a materiales planos sin textura
+                       * (hasTexture == 1 ? 0.0 : 1.0);
     // Alterno franjas de corte y una fibra fina para dar variacion al cesped.
     float franjaCorte = mod(floor((world.z + 34.0) / 6.8), 2.0);
     float fibraCesped = sin(world.x * 10.0 + world.z * 1.8 + sin(world.z * 0.65) * 2.0);
@@ -1125,7 +1129,7 @@ void main() {
         float diffuse = max(dot(normal, normalize(-ray)), 0.0);
         illumination += beam * diffuse * 2.0 / (1.0 + 0.006 * d + 0.00025 * d * d);
     }
-    fragColor = vec4(base * clamp(illumination, 0.20, 1.55) + aportePuntual, 1.0);
+    fragColor = vec4(base * clamp(illumination, 0.20, 1.55) + aportePuntual, materialAlpha);
 }
 )GLSL";
     const char* mv = vertexModelo.c_str(); const char* mf = fragmentModelo.c_str(); glShaderSource(modeloVS, 1, &mv, nullptr); glShaderSource(modeloFS, 1, &mf, nullptr); glCompileShader(modeloVS); glCompileShader(modeloFS);
@@ -1135,12 +1139,26 @@ void main() {
     glUseProgram(programaModelos);
     glUniform3f(glGetUniformLocation(programaModelos, "pointLightPos"), -62.0f, 20.0f, 0.0f);
     glUniform3f(glGetUniformLocation(programaModelos, "pointLightColor"), 1.0f, 0.72f, 0.38f);
+    glUniform1f(glGetUniformLocation(programaModelos, "materialAlpha"), 1.0f);
     glUseProgram(programa);
 
     struct Instancia { size_t modelo; glm::vec3 posicion; float tamano; float rotacion; float inclinacion; };
     // 6. Mantengo las rutas de los recursos en un solo arreglo para facilitar
     //    su revision si cambia la estructura de Models/ProyectoGrafica.
+    // Modelos realistas (texturas horneadas) en Models/Realista; si alguno falta se usa
+    // automaticamente la exportacion anterior de Models/ProyectoGrafica.
     const char* rutasModelos[] = {
+        "Models/Realista/autobus/autobus.obj", "Models/Realista/balon/balon.obj",
+        "Models/Realista/camara/camara_completa.obj", "Models/Realista/marcador/marcador.obj",
+        "Models/Realista/carrito_emergencias/carrito_emergencias_completo.obj", "Models/Realista/estadio/estadio.obj",
+        "Models/Realista/podio/podio.obj", "Models/Realista/trofeo/trofeo.obj",
+        "Models/Realista/iluminador/iluminador.obj",
+        "Models/Realista/jugador_arbitro/jugador_arbitro.obj", "Models/Realista/jugador_arbitro/jugador_arbitro.obj",
+        "Models/Realista/porteria/porteria.obj", "Models/Realista/banca/banca.obj",
+        "Models/Realista/banca/banca.obj", "Models/Realista/carrito/carrito_completo.obj",
+        "Models/Realista/goyo/Goyo.obj", "Models/Realista/tiro_esquina/tiro_esquina.obj"
+    };
+    const char* rutasRespaldo[] = {
         "Models/ProyectoGrafica/autobus/autobus.obj", "Models/ProyectoGrafica/balon/balon.obj",
         "Models/ProyectoGrafica/camera/camera_estadio.obj", "Models/ProyectoGrafica/scoreboard/scoreboard.obj",
         "Models/ProyectoGrafica/carrito_emergencias/carrito_emergencias.obj", "Models/ProyectoGrafica/estadio/estadio.obj",
@@ -1156,10 +1174,30 @@ void main() {
     // Cada filtro permite cargar solo el grupo de mallas nombrado del OBJ;
     // asi separo torso, brazos y piernas para poder transformarlos por articulacion.
     std::vector<ModeloOBJ> modelos; modelos.reserve(28);
-    int modelosCargados = 0;
-    for (int i = 0;i < 17;++i) { modelos.emplace_back(); if (modelos.back().cargar(rutasModelos[i], filtrosModelo[i] ? filtrosModelo[i] : "")) ++modelosCargados; }
-    std::cout << "Modelos OBJ cargados: " << modelosCargados << "/17 (16 modelos fuente; jugador y arbitro separados)" << std::endl;
-    const std::string rutaJugador = rutasModelos[9];
+    int modelosCargados = 0, modelosRealistas = 0;
+    bool jugadorRealista = false;
+    for (int i = 0;i < 17;++i) {
+        modelos.emplace_back();
+        const std::string filtro = filtrosModelo[i] ? filtrosModelo[i] : "";
+        if (modelos.back().cargar(rutasModelos[i], filtro)) { ++modelosCargados; ++modelosRealistas; if (i == 9) jugadorRealista = true; }
+        else {
+            modelos.back() = ModeloOBJ();
+            std::cerr << "Modelo realista no disponible, se usa el anterior: " << rutasRespaldo[i] << std::endl;
+            if (modelos.back().cargar(rutasRespaldo[i], filtro)) ++modelosCargados;
+        }
+    }
+    std::cout << "Modelos OBJ cargados: " << modelosCargados << "/17 (" << modelosRealistas
+              << " realistas; 16 modelos fuente, jugador y arbitro separados)" << std::endl;
+    // Las piezas articuladas salen del mismo archivo que el cuerpo del jugador.
+    const std::string rutaJugador = jugadorRealista ? rutasModelos[9] : rutasRespaldo[9];
+    // Uniformes por equipo: el jugador realista tiene UV de atlas, asi que usa los uniformes
+    // horneados en ese mismo UV (el OBJ anterior no tenia UV en la camiseta).
+    if (jugadorRealista) {
+        GLuint uA = SOIL_load_OGL_texture("Models/Realista/jugador_arbitro/textures/uniforme_atlas.jpg", SOIL_LOAD_AUTO, SOIL_CREATE_NEW_ID, SOIL_FLAG_INVERT_Y | SOIL_FLAG_MIPMAPS);
+        GLuint uC = SOIL_load_OGL_texture("Models/Realista/jugador_arbitro/textures/uniforme_cruz_azul.jpg", SOIL_LOAD_AUTO, SOIL_CREATE_NEW_ID, SOIL_FLAG_INVERT_Y | SOIL_FLAG_MIPMAPS);
+        if (uA) texturaAtlas = uA; else std::cerr << "No se pudo cargar Models/Realista/jugador_arbitro/textures/uniforme_atlas.jpg" << std::endl;
+        if (uC) texturaCruzAzul = uC; else std::cerr << "No se pudo cargar Models/Realista/jugador_arbitro/textures/uniforme_cruz_azul.jpg" << std::endl;
+    }
     const char* filtrosArticulados[] = {
         "Jugador_CHICHARITO|CHICHARITO_|!Jugador_CHICHARITO_antebrazo_derecho_|!Jugador_CHICHARITO_antebrazo_izquierdo_|!Jugador_CHICHARITO_codo_derecho_|!Jugador_CHICHARITO_codo_izquierdo_|!Jugador_CHICHARITO_muslo_derecha_|!Jugador_CHICHARITO_muslo_izquierda_|!Jugador_CHICHARITO_pierna_derecha_|!Jugador_CHICHARITO_pierna_izquierda_|!Jugador_CHICHARITO_rodilla_derecha_|!Jugador_CHICHARITO_rodilla_izquierda_|!Jugador_CHICHARITO_tobillo_derecha_|!Jugador_CHICHARITO_tobillo_izquierda_|!Jugador_CHICHARITO_banda_media_|!Jugador_CHICHARITO_agujeta_|!Jugador_CHICHARITO_suela_|!Jugador_CHICHARITO_tachon_|!CHICHARITO_\\|_palma_|!CHICHARITO_\\|_manga_anatómica_",
         "CHICHARITO_\\|_manga_anatómica_derecha_",
