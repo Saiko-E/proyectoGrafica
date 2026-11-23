@@ -1,0 +1,183 @@
+# MTL generado para OpenGL (Assimp 4.1 / SOIL2)
+
+newmtl Goyo_jersey
+Ns 64.0
+Ka 1.0 1.0 1.0
+Kd 0.0040 0.0220 0.1200
+Ks 0.5 0.5 0.5
+Ke 0.0 0.0 0.0
+Ni 1.45
+d 1.000
+illum 2
+map_Kd textures/goyo_albedo.jpg
+map_Ks textures/goyo_spec.jpg
+map_Bump textures/goyo_normal.png
+
+newmtl Goyo_oro
+Ns 64.0
+Ka 1.0 1.0 1.0
+Kd 1.0000 0.4800 0.0180
+Ks 0.5 0.5 0.5
+Ke 0.0 0.0 0.0
+Ni 1.45
+d 1.000
+illum 2
+map_Kd textures/goyo_albedo.jpg
+map_Ks textures/goyo_spec.jpg
+map_Bump textures/goyo_normal.png
+
+newmtl Goyo_negro
+Ns 64.0
+Ka 1.0 1.0 1.0
+Kd 0.0080 0.0120 0.0200
+Ks 0.5 0.5 0.5
+Ke 0.0 0.0 0.0
+Ni 1.45
+d 1.000
+illum 2
+map_Kd textures/goyo_albedo.jpg
+map_Ks textures/goyo_spec.jpg
+map_Bump textures/goyo_normal.png
+
+newmtl Goyo_pelaje_miel
+Ns 64.0
+Ka 1.0 1.0 1.0
+Kd 0.6600 0.3600 0.1400
+Ks 0.5 0.5 0.5
+Ke 0.0 0.0 0.0
+Ni 1.45
+d 1.000
+illum 2
+map_Kd textures/goyo_albedo.jpg
+map_Ks textures/goyo_spec.jpg
+map_Bump textures/goyo_normal.png
+
+newmtl Goyo_brillo
+Ns 64.0
+Ka 1.0 1.0 1.0
+Kd 1.0000 1.0000 1.0000
+Ks 0.5 0.5 0.5
+Ke 0.0 0.0 0.0
+Ni 1.45
+d 1.000
+illum 2
+map_Kd textures/goyo_albedo.jpg
+map_Ks textures/goyo_spec.jpg
+map_Bump textures/goyo_normal.png
+
+newmtl Goyo_ceja
+Ns 64.0
+Ka 1.0 1.0 1.0
+Kd 0.0150 0.0450 0.1200
+Ks 0.5 0.5 0.5
+Ke 0.0 0.0 0.0
+Ni 1.45
+d 1.000
+illum 2
+map_Kd textures/goyo_albedo.jpg
+map_Ks textures/goyo_spec.jpg
+map_Bump textures/goyo_normal.png
+
+newmtl Goyo_oro_franja
+Ns 64.0
+Ka 1.0 1.0 1.0
+Kd 1.0000 0.4800 0.0180
+Ks 0.5 0.5 0.5
+Ke 0.0 0.0 0.0
+Ni 1.45
+d 1.000
+illum 2
+map_Kd textures/goyo_albedo.jpg
+map_Ks textures/goyo_spec.jpg
+map_Bump textures/goyo_normal.png
+
+newmtl Goyo_pelaje_beige
+Ns 64.0
+Ka 1.0 1.0 1.0
+Kd 0.8800 0.6600 0.4000
+Ks 0.5 0.5 0.5
+Ke 0.0 0.0 0.0
+Ni 1.45
+d 1.000
+illum 2
+map_Kd textures/goyo_albedo.jpg
+map_Ks textures/goyo_spec.jpg
+map_Bump textures/goyo_normal.png
+
+newmtl Goyo_oreja_interior
+Ns 64.0
+Ka 1.0 1.0 1.0
+Kd 0.8800 0.4800 0.0350
+Ks 0.5 0.5 0.5
+Ke 0.0 0.0 0.0
+Ni 1.45
+d 1.000
+illum 2
+map_Kd textures/goyo_albedo.jpg
+map_Ks textures/goyo_spec.jpg
+map_Bump textures/goyo_normal.png
+
+newmtl Goyo_iris
+Ns 64.0
+Ka 1.0 1.0 1.0
+Kd 0.0250 0.3000 0.7200
+Ks 0.5 0.5 0.5
+Ke 0.0 0.0 0.0
+Ni 1.45
+d 1.000
+illum 2
+map_Kd textures/goyo_albedo.jpg
+map_Ks textures/goyo_spec.jpg
+map_Bump textures/goyo_normal.png
+
+newmtl Goyo_pelaje_crema
+Ns 64.0
+Ka 1.0 1.0 1.0
+Kd 0.9400 0.7900 0.5800
+Ks 0.5 0.5 0.5
+Ke 0.0 0.0 0.0
+Ni 1.45
+d 1.000
+illum 2
+map_Kd textures/goyo_albedo.jpg
+map_Ks textures/goyo_spec.jpg
+map_Bump textures/goyo_normal.png
+
+newmtl Goyo_ojo_blanco
+Ns 64.0
+Ka 1.0 1.0 1.0
+Kd 0.9400 0.9400 0.9000
+Ks 0.5 0.5 0.5
+Ke 0.0 0.0 0.0
+Ni 1.45
+d 1.000
+illum 2
+map_Kd textures/goyo_albedo.jpg
+map_Ks textures/goyo_spec.jpg
+map_Bump textures/goyo_normal.png
+
+newmtl Goyo_suela
+Ns 64.0
+Ka 1.0 1.0 1.0
+Kd 0.9200 0.9400 0.9700
+Ks 0.5 0.5 0.5
+Ke 0.0 0.0 0.0
+Ni 1.45
+d 1.000
+illum 2
+map_Kd textures/goyo_albedo.jpg
+map_Ks textures/goyo_spec.jpg
+map_Bump textures/goyo_normal.png
+
+newmtl Goyo_tenis
+Ns 64.0
+Ka 1.0 1.0 1.0
+Kd 0.0040 0.0220 0.1200
+Ks 0.5 0.5 0.5
+Ke 0.0 0.0 0.0
+Ni 1.45
+d 1.000
+illum 2
+map_Kd textures/goyo_albedo.jpg
+map_Ks textures/goyo_spec.jpg
+map_Bump textures/goyo_normal.png

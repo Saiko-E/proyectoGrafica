@@ -1,0 +1,27 @@
+# MTL generado para OpenGL (Assimp 4.1 / SOIL2)
+
+newmtl tiro_poste_mat
+Ns 64.0
+Ka 1.0 1.0 1.0
+Kd 1.0 1.0 1.0
+Ks 0.5 0.5 0.5
+Ke 0.0 0.0 0.0
+Ni 1.45
+d 1.000
+illum 2
+map_Kd textures/tiro_poste_albedo.jpg
+map_Ks textures/tiro_poste_spec.jpg
+map_Bump textures/tiro_poste_normal.png
+
+newmtl tiro_banderin_mat
+Ns 64.0
+Ka 1.0 1.0 1.0
+Kd 1.0 1.0 1.0
+Ks 0.5 0.5 0.5
+Ke 0.0 0.0 0.0
+Ni 1.45
+d 1.000
+illum 2
+map_Kd textures/tiro_banderin_albedo.jpg
+map_Ks textures/tiro_banderin_spec.jpg
+map_Bump textures/tiro_banderin_normal.png

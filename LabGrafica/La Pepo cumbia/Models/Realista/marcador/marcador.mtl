@@ -1,0 +1,27 @@
+# MTL generado para OpenGL (Assimp 4.1 / SOIL2)
+
+newmtl marcador_mat
+Ns 64.0
+Ka 1.0 1.0 1.0
+Kd 1.0 1.0 1.0
+Ks 0.5 0.5 0.5
+Ke 0.0 0.0 0.0
+Ni 1.45
+d 1.000
+illum 2
+map_Kd textures/marcador_albedo.jpg
+map_Ks textures/marcador_spec.jpg
+map_Bump textures/marcador_normal.png
+
+newmtl marcador_textos_mat
+Ns 64.0
+Ka 1.0 1.0 1.0
+Kd 1.0 1.0 1.0
+Ks 0.5 0.5 0.5
+Ke 0.0 0.0 0.0
+Ni 1.45
+d 1.000
+illum 2
+map_Kd textures/marcador_textos_albedo.jpg
+map_Ks textures/marcador_textos_spec.jpg
+map_Bump textures/marcador_textos_normal.png

@@ -1,0 +1,118 @@
+# MTL generado para OpenGL (Assimp 4.1 / SOIL2)
+
+newmtl estadio_concreto
+Ns 64.0
+Ka 1.0 1.0 1.0
+Kd 1.0 1.0 1.0
+Ks 0.5 0.5 0.5
+Ke 0.0 0.0 0.0
+Ni 1.45
+d 1.000
+illum 2
+map_Kd textures/concreto_albedo.jpg
+map_Ks textures/concreto_spec.jpg
+map_Bump textures/concreto_normal.png
+
+newmtl estadio_metal
+Ns 64.0
+Ka 1.0 1.0 1.0
+Kd 1.0 1.0 1.0
+Ks 0.5 0.5 0.5
+Ke 0.0 0.0 0.0
+Ni 1.45
+d 1.000
+illum 2
+map_Kd textures/metal_albedo.jpg
+map_Ks textures/metal_spec.jpg
+map_Bump textures/metal_normal.png
+
+newmtl estadio_pavimento
+Ns 64.0
+Ka 1.0 1.0 1.0
+Kd 1.0 1.0 1.0
+Ks 0.5 0.5 0.5
+Ke 0.0 0.0 0.0
+Ni 1.45
+d 1.000
+illum 2
+map_Kd textures/pavimento_albedo.jpg
+map_Ks textures/pavimento_spec.jpg
+map_Bump textures/pavimento_normal.png
+
+newmtl estadio_rojo
+Ns 64.0
+Ka 1.0 1.0 1.0
+Kd 1.0 1.0 1.0
+Ks 0.5 0.5 0.5
+Ke 0.0 0.0 0.0
+Ni 1.45
+d 1.000
+illum 2
+map_Kd textures/rojo_albedo.jpg
+map_Ks textures/rojo_spec.jpg
+map_Bump textures/rojo_normal.png
+
+newmtl estadio_lineas
+Ns 64.0
+Ka 1.0 1.0 1.0
+Kd 1.0 1.0 1.0
+Ks 0.5 0.5 0.5
+Ke 0.0 0.0 0.0
+Ni 1.45
+d 1.000
+illum 2
+map_Kd textures/lineas_albedo.jpg
+map_Ks textures/lineas_spec.jpg
+map_Bump textures/lineas_normal.png
+
+newmtl estadio_cesped
+Ns 64.0
+Ka 1.0 1.0 1.0
+Kd 1.0 1.0 1.0
+Ks 0.5 0.5 0.5
+Ke 0.0 0.0 0.0
+Ni 1.45
+d 1.000
+illum 2
+map_Kd textures/cesped_albedo.jpg
+map_Ks textures/cesped_spec.jpg
+map_Bump textures/cesped_normal.png
+
+newmtl estadio_butacas
+Ns 64.0
+Ka 1.0 1.0 1.0
+Kd 1.0 1.0 1.0
+Ks 0.5 0.5 0.5
+Ke 0.0 0.0 0.0
+Ni 1.45
+d 1.000
+illum 2
+map_Kd textures/butacas_albedo.jpg
+map_Ks textures/butacas_spec.jpg
+map_Bump textures/butacas_normal.png
+
+newmtl estadio_respaldos
+Ns 64.0
+Ka 1.0 1.0 1.0
+Kd 1.0 1.0 1.0
+Ks 0.5 0.5 0.5
+Ke 0.0 0.0 0.0
+Ni 1.45
+d 1.000
+illum 2
+map_Kd textures/respaldos_albedo.jpg
+map_Ks textures/respaldos_spec.jpg
+map_Bump textures/respaldos_normal.png
+
+newmtl estadio_techo
+Ns 64.0
+Ka 1.0 1.0 1.0
+Kd 1.0 1.0 1.0
+Ks 0.5 0.5 0.5
+Ke 0.0 0.0 0.0
+Ni 1.45
+d 1.000
+illum 2
+map_Kd textures/techo_albedo.jpg
+map_Ks textures/techo_spec.jpg
+map_Bump textures/techo_normal.png

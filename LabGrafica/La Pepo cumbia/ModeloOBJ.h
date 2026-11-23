@@ -27,6 +27,7 @@ struct ParteOBJ {
     GLuint textura = 0;
     GLsizei vertices = 0;
     glm::vec3 color = glm::vec3(0.8f);
+    float alpha = 1.0f;          // 'd' del MTL: < 1 se dibuja con mezcla (vidrio, policarbonato)
     bool colorEquipo = false;
 };
 
@@ -148,7 +149,8 @@ public:
 
         std::map<std::string, glm::vec3> colores;
         std::map<std::string, std::string> mapas;
-        if (!archivoMaterial.empty()) cargarMaterial(carpeta + archivoMaterial, colores, mapas);
+        std::map<std::string, float> alfas;
+        if (!archivoMaterial.empty()) cargarMaterial(carpeta + archivoMaterial, colores, mapas, alfas);
 
         for (size_t i = 0; i < ordenGrupos.size(); ++i) {
             const std::string& nombre = ordenGrupos[i];
@@ -158,10 +160,10 @@ public:
             parte.vertices = (GLsizei)vertices.size();
             parte.colorEquipo = nombre.find("Verde") != std::string::npos;
             if (colores.find(nombre) != colores.end()) parte.color = colores[nombre];
+            if (alfas.find(nombre) != alfas.end()) parte.alpha = alfas[nombre];
             if (mapas.find(nombre) != mapas.end()) {
                 std::string archivoTextura = carpeta + mapas[nombre];
-                parte.textura = SOIL_load_OGL_texture(archivoTextura.c_str(), SOIL_LOAD_AUTO,
-                    SOIL_CREATE_NEW_ID, SOIL_FLAG_INVERT_Y | SOIL_FLAG_TEXTURE_REPEATS);
+                parte.textura = texturaCompartida(archivoTextura);
                 if (parte.textura == 0) std::cerr << "Textura no disponible: " << archivoTextura << std::endl;
             }
             glGenVertexArrays(1, &parte.vao);
@@ -211,17 +213,24 @@ public:
             GLuint texturaActiva = aplicarColorEquipo && parte.colorEquipo && texturaEquipo ? texturaEquipo : parte.textura;
             bool reemplazarColor = aplicarColorEquipo && parte.colorEquipo && texturaActiva == 0;
             glUniform3fv(glGetUniformLocation(programa, "materialColor"), 1, glm::value_ptr(parte.color));
+            glUniform1f(glGetUniformLocation(programa, "materialAlpha"), parte.alpha);
+            const bool transparente = parte.alpha < 0.999f;
+            if (transparente) {   // vidrio/policarbonato: mezcla sin escribir profundidad
+                glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); glDepthMask(GL_FALSE);
+            }
             glUniform1i(glGetUniformLocation(programa, "teamColorable"), reemplazarColor ? 1 : 0);
             glUniform1i(glGetUniformLocation(programa, "hasTexture"), texturaActiva != 0 ? 1 : 0);
             glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, texturaActiva);
             glBindVertexArray(parte.vao); glDrawArrays(GL_TRIANGLES, 0, parte.vertices);
+            if (transparente) { glDepthMask(GL_TRUE); glDisable(GL_BLEND); }
         }
+        glUniform1f(glGetUniformLocation(programa, "materialAlpha"), 1.0f);
         glBindVertexArray(0);
     }
 
     void liberar() {
         for (size_t i = 0; i < partes.size(); ++i) {
-            if (partes[i].textura) glDeleteTextures(1, &partes[i].textura);
+            // las texturas viven en la cache compartida (otras instancias pueden usarlas)
             if (partes[i].vbo) glDeleteBuffers(1, &partes[i].vbo);
             if (partes[i].vao) glDeleteVertexArrays(1, &partes[i].vao);
         }
@@ -257,8 +266,21 @@ private:
         if (std::getline(s, part, '/')) ti = part.empty() ? 0 : std::stoi(part);
         if (std::getline(s, part, '/')) ni = part.empty() ? 0 : std::stoi(part);
     }
+    // Cache de texturas: varios materiales/modelos comparten el mismo atlas horneado
+    // (p. ej. Goyo tiene 14 materiales sobre una imagen y el jugador se carga 12 veces);
+    // sin cache se subiria la misma imagen a la GPU decenas de veces.
+    static GLuint texturaCompartida(const std::string& ruta) {
+        static std::map<std::string, GLuint> cache;
+        std::map<std::string, GLuint>::iterator it = cache.find(ruta);
+        if (it != cache.end()) return it->second;
+        // Mipmaps: evitan el parpadeo de las texturas finas (butacas, red, LEDs) a distancia.
+        GLuint id = SOIL_load_OGL_texture(ruta.c_str(), SOIL_LOAD_AUTO, SOIL_CREATE_NEW_ID,
+            SOIL_FLAG_INVERT_Y | SOIL_FLAG_TEXTURE_REPEATS | SOIL_FLAG_MIPMAPS);
+        if (id) cache[ruta] = id;
+        return id;
+    }
     static void cargarMaterial(const std::string& ruta, std::map<std::string, glm::vec3>& colores,
-                               std::map<std::string, std::string>& mapas) {
+                               std::map<std::string, std::string>& mapas, std::map<std::string, float>& alfas) {
         std::ifstream archivo(ruta.c_str());
         if (!archivo.is_open()) return;
         std::string linea, actual;
@@ -266,6 +288,7 @@ private:
             std::istringstream s(linea); std::string tipo; s >> tipo;
             if (tipo == "newmtl") { std::getline(s, actual); limpiar(actual); colores[actual] = glm::vec3(0.8f); }
             else if (tipo == "Kd" && !actual.empty()) s >> colores[actual].r >> colores[actual].g >> colores[actual].b;
+            else if (tipo == "d" && !actual.empty()) { float a = 1.0f; s >> a; alfas[actual] = a < 0.05f ? 1.0f : a; }
             else if (tipo == "map_Kd" && !actual.empty()) { std::getline(s, mapas[actual]); limpiar(mapas[actual]); }
         }
     }
