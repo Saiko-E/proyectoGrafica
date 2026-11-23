@@ -4,6 +4,7 @@
 #include <string>
 #include <utility>
 #include "ModeloOBJ.h"
+#include "Auto.h"
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
@@ -521,6 +522,8 @@ int ladoPorteroReacciona = 0;
 glm::vec3 posicionAutobus(-78.0f, 0.0f, 48.0f);
 float rumboAutobus = 90.0f;
 bool camaraAutobus = false;
+// Prepartido (Auto.h): mientras llega el visitante se bloquean las jugadas; ENTER lo salta.
+bool prepartidoActivo = false, saltarPrepartido = false;
 glm::vec3 arbitro(7.0f, 0.0f, -4.0f);
 float tiempoAnimacion = 0.0f;
 
@@ -750,6 +753,10 @@ void tecla(GLFWwindow* w, int key, int, int action, int) {
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) glfwSetWindowShouldClose(w, GL_TRUE);
     // Mantengo el estado presionado de cada tecla para leerlo continuamente en el ciclo principal.
     if (key >= 0 && key < 1024) { if (action == GLFW_PRESS) teclas[key] = true; if (action == GLFW_RELEASE) teclas[key] = false; }
+    if (prepartidoActivo && action == GLFW_PRESS) {
+        if (key == GLFW_KEY_ENTER) saltarPrepartido = true;
+        if (key == GLFW_KEY_J || key == GLFW_KEY_K || key == GLFW_KEY_SPACE || key == GLFW_KEY_N || key == GLFW_KEY_R) return;
+    }
     if (action == GLFW_PRESS) {
         // Al cambiar de modo, apago los otros seguimientos para que solo haya una camara activa.
         if (key == GLFW_KEY_V) { primeraPersona = !primeraPersona; camaraLibre = false; camaraAutobus = false; }
@@ -1161,11 +1168,11 @@ void main() {
     std::vector<Instancia> instancias;
     auto instancia = [&](size_t m, glm::vec3 p, float s, float r = 0.0f, float x = 0.0f) { instancias.push_back({ m,p,s,r,x }); };
     // El campo importado mide aprox. 101 x 68 unidades: largo en X, ancho en Z.
-    instancia(0, posicionAutobus, 14, rumboAutobus);
+    // El autobus (antes instancia 0) y el carrito medico (antes instancia 4) ahora los dibuja EntradaEquipo (Auto.h).
     instancia(2, glm::vec3(0, 7, -40), 1.5f);
     instancia(3, glm::vec3(-62, 14, 0), 11, 90);
     // Se retira el carrito de emergencias de la valla lateral para dejar un pasillo libre.
-    instancia(4, glm::vec3(-30, 0, -27.0f), 2.6f);
+
     instancia(5, glm::vec3(0, 0, 0), 210);
     instancia(6, glm::vec3(10, 0, -26), 8);
     instancia(7, glm::vec3(10, 1.0f, -26), 3.5f);
@@ -1181,6 +1188,11 @@ void main() {
     // Cuatro banderas sobre las esquinas reales del terreno.
     instancia(16, glm::vec3(-34.0f, -0.5, -21.9f), 4.5f); instancia(16, glm::vec3(-34.0f, -0.5, 21.9f), 4.5f);
     instancia(16, glm::vec3(34.0f, -0.5, 21.9f), 4.5f); instancia(16, glm::vec3(34.0f, -0.5, -21.9f), 4.5f);
+    // Prepartido: llegada del autobus visitante, entrada de jugadores y paseo del carrito medico (Auto.h).
+    EntradaEquipo entrada;
+    entrada.cargar("Models/Realista/");
+    prepartidoActivo = entrada.enPrepartido();
+    if (prepartidoActivo) zoomCamara = 70.0f;
     // Guardo las ubicaciones de uniformes una vez, en vez de buscarlas cada cuadro.
     GLint locM = glGetUniformLocation(programa, "model"), locV = glGetUniformLocation(programa, "view"), locP = glGetUniformLocation(programa, "projection");
     GLint locColor = glGetUniformLocation(programa, "tint"), locField = glGetUniformLocation(programa, "field"), locLamps = glGetUniformLocation(programa, "lamps"), locUI = glGetUniformLocation(programa, "uiMode");
@@ -1215,8 +1227,11 @@ void main() {
         // Limites exteriores para mantenerlo recorriendo el estadio y evitar perderlo de vista.
         posicionAutobus.x = glm::clamp(posicionAutobus.x, -88.0f, 88.0f);
         posicionAutobus.z = glm::clamp(posicionAutobus.z, -76.0f, 76.0f);
-        instancias[0].posicion = posicionAutobus;
-        instancias[0].rotacion = rumboAutobus;
+        // Prepartido: Auto.h mueve el autobus y el carrito; en partido el autobus sigue las flechas.
+        prepartidoActivo = entrada.enPrepartido();
+        if (saltarPrepartido) { entrada.saltar(); saltarPrepartido = false; }
+        entrada.actualizar(dt, posicionAutobus, rumboAutobus);
+        if (prepartidoActivo && !entrada.enPrepartido()) { prepartidoActivo = false; zoomCamara = 100.0f; }
 
         if (camaraLibre) {
             const float velocidadCamaraLibre = 32.0f;
@@ -1230,7 +1245,7 @@ void main() {
             if (teclas[GLFW_KEY_Q]) posicionCamaraLibre.y -= dt * velocidadCamaraLibre;
             posicionCamaraLibre.y = glm::max(2.0f, posicionCamaraLibre.y);
         }
-        else if (!animando) {
+        else if (!animando && !prepartidoActivo) {
             if (teclas[GLFW_KEY_W]) jugador += frente * dt * velocidadJugador;
             if (teclas[GLFW_KEY_S]) jugador -= frente * dt * velocidadJugador;
             if (teclas[GLFW_KEY_A]) jugador -= derecha * dt * velocidadJugador;
@@ -1320,7 +1335,7 @@ void main() {
         else if (camaraLibre) { posCam = posicionCamaraLibre; float pitch = glm::radians(anguloMouseY); glm::vec3 f = glm::normalize(glm::vec3(cos(yaw) * cos(pitch), sin(pitch), sin(yaw) * cos(pitch))); objetivo = posCam + f; }
         else {
             glm::vec3 centroCamaraJugada = (animando || jugadaTerminada) ? glm::mix(inicioJugada, objetivoJugada, glm::clamp(tiempoAnimacion / 5.8f, 0.0f, 1.0f)) : jugador;
-            objetivo = (camaraAutobus ? posicionAutobus : centroCamaraJugada) + glm::vec3(0, 2.0f, 0);
+            objetivo = (prepartidoActivo ? entrada.foco() : (camaraAutobus ? posicionAutobus : centroCamaraJugada)) + glm::vec3(0, 2.0f, 0);
             float pitch = glm::radians(glm::clamp(anguloMouseY, 10.0f, 80.0f));
             posCam = objetivo - frente * (zoomCamara * cos(pitch)) + glm::vec3(0, zoomCamara * sin(pitch), 0);
         }
@@ -1348,6 +1363,8 @@ void main() {
             modelos[instanciaAnimada.modelo].dibujar(programaModelos, vista, proy, instanciaAnimada.posicion,
                 instanciaAnimada.tamano, instanciaAnimada.rotacion, reflectores, instanciaAnimada.inclinacion);
         }
+        // Autobus y carrito medico de EntradaEquipo, con el mismo shader de modelos.
+        entrada.dibujarVehiculos(programaModelos, vista, proy, reflectores);
         // La cancha se dibuja despues del modelo del estadio para conservar
         // visible la textura de cesped y las lineas reglamentarias.
         glUseProgram(programa);
@@ -1705,7 +1722,13 @@ void main() {
             else dibujaJugadorCompleto(raiz, colorAtlas, texturaAtlas);
         }
         // El equipo defensor cubre carriles; su portero activa la pose de atajada.
-        for (size_t i = 0;i < 11;++i) {
+        // Durante el prepartido el visitante aun viene en camino; EntradaEquipo lo dibuja.
+        entrada.dibujarVisitantes([&](const glm::vec3& p, float rumbo, bool camina, float fase) {
+            glm::mat4 raizVisita = crearRaizJugador(p, rumbo);
+            if (camina) dibujaJugadorCorriendo(raizVisita, colorCruzAzul, texturaCruzAzul, fase, 0.0f);
+            else dibujaJugadorCompleto(raizVisita, colorCruzAzul, texturaCruzAzul);
+            });
+        for (size_t i = 0;i < 11 && !entrada.enPrepartido();++i) {
             glm::vec3 posicion(equipoBlanco[i].x, 0, equipoBlanco[i].y); bool corre = false, porteroAtaja = false; float intensidadAtajada = 0.0f;
             // Del equipo rival tambien salen solo los dos mas cercanos al punto
             // previsto. El resto conserva su posicion para mantener la formacion.

@@ -1,0 +1,40 @@
+# MTL generado para OpenGL (Assimp 4.1 / SOIL2)
+
+newmtl carrito_emerg_mat
+Ns 64.0
+Ka 1.0 1.0 1.0
+Kd 1.0 1.0 1.0
+Ks 0.5 0.5 0.5
+Ke 0.0 0.0 0.0
+Ni 1.45
+d 1.000
+illum 2
+map_Kd textures/carrito_emerg_albedo.jpg
+map_Ks textures/carrito_emerg_spec.jpg
+map_Bump textures/carrito_emerg_normal.png
+
+newmtl carrito_emerg_vidrio_mat
+Ns 64.0
+Ka 1.0 1.0 1.0
+Kd 1.0 1.0 1.0
+Ks 0.5 0.5 0.5
+Ke 0.0 0.0 0.0
+Ni 1.45
+d 0.350
+illum 2
+map_Kd textures/carrito_emerg_vidrio_albedo.jpg
+map_Ks textures/carrito_emerg_vidrio_spec.jpg
+map_Bump textures/carrito_emerg_vidrio_normal.png
+
+newmtl carrito_emerg_ruedas_mat
+Ns 64.0
+Ka 1.0 1.0 1.0
+Kd 1.0 1.0 1.0
+Ks 0.5 0.5 0.5
+Ke 0.0 0.0 0.0
+Ni 1.45
+d 1.000
+illum 2
+map_Kd textures/carrito_emerg_ruedas_albedo.jpg
+map_Ks textures/carrito_emerg_ruedas_spec.jpg
+map_Bump textures/carrito_emerg_ruedas_normal.png
