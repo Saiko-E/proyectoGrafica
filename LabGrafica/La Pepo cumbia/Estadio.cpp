@@ -42,6 +42,8 @@ const float PI = 3.14159265359f;
 // Dimensiones del campo (proporciones aproximadas)
 const float CAMPO_ANCHO = 68.0f;
 const float CAMPO_LARGO = 105.0f;
+// shortcut: corresponde a la escala actual del OBJ del estadio; actualizar si cambia su instancia.
+const float ESCALA_ESTADIO = 210.0f / 320.0f;
 
 const float MITAD_ANCHO = CAMPO_ANCHO / 2.0f;
 const float MITAD_LARGO = CAMPO_LARGO / 2.0f;
@@ -488,6 +490,7 @@ void construirCancha()
 struct Caja { glm::vec3 centro, escala, color; };
 // Geometria que se envia a OpenGL y objetos auxiliares del escenario.
 std::vector<float> geometriaEscenario;
+std::vector<std::pair<glm::vec3, float>> posicionesPublico;
 std::vector<Caja> cajas;
 std::vector<Caja> vallasPublicidad;
 std::vector<Caja> fondosTifo;
@@ -685,6 +688,7 @@ void agregarCilindroVertical(float x, float z, float radio, float alto, glm::vec
 // Organiza el campo, gradas, bancas, cabinas, torres y accesos en el espacio 3D.
 void construirEscenario() {
     construirCancha();
+    posicionesPublico.clear();
     // El estadio y los jugadores usan X como eje largo del campo; la cancha
     // se definio localmente con el largo en Z, asi que la giramos al guardar.
     // El pequeño alzado evita que el piso verde del modelo importado la tape.
@@ -693,17 +697,23 @@ void construirEscenario() {
         vertices[i + 1] += 0.06f;
     }
     glm::vec3 gris(0.28f, 0.32f, 0.38f), concreto(0.42f, 0.43f, 0.40f), blanco(0.96f);
-    // Zona 2: gradas en ambos laterales, con pasillos y asientos en niveles.
-    for (int lado = -1;lado <= 1;lado += 2) {
-        for (int fila = 0;fila < 9;++fila) {
-            float x = lado * (39.0f + fila * 1.65f), y = 1.0f + fila * 0.78f;
-            agregarCaja(x, y, -2, 3.2f, 0.65f, 96, gris);
-            for (int z = -44;z <= 44;z += 4) {
-                glm::vec3 asiento = ((z / 4 + fila) % 2 == 0) ? AZUL : AMARILLO;
-                agregarCaja(x - lado * 0.2f, y + 0.42f, (float)z, 2.1f, 0.45f, 2.1f, asiento);
-            }
+    // Público en anillos ovalados, siguiendo las nueve filas inferiores del OBJ.
+    for (int fila = 0; fila < 9; ++fila) {
+        int nivel = fila + 5;
+        float radioX = (77.0f + nivel * 0.9f) * ESCALA_ESTADIO;
+        float radioZ = (52.0f + nivel * 0.9f) * ESCALA_ESTADIO;
+        float altura = nivel * 0.45f * ESCALA_ESTADIO;
+        float perimetro = PI * (3.0f * (radioX + radioZ) - sqrt((3.0f * radioX + radioZ) * (radioX + 3.0f * radioZ)));
+        int cantidad = (int)(perimetro / 5.5f);
+        for (int i = 0; i < cantidad; ++i) {
+            float angulo = 2.0f * PI * i / cantidad;
+            glm::vec3 posicion(radioX * cos(angulo), altura, radioZ * sin(angulo));
+            float orientacion = glm::degrees((float)atan2(-cos(angulo), -sin(angulo)));
+            posicionesPublico.emplace_back(posicion, orientacion);
         }
-        // Torre de iluminacion y luminarias encendidas/apagadas por tecla F.
+    }
+    // Torre de iluminacion y luminarias encendidas/apagadas por tecla F.
+    for (int lado : { -1, 1 }) {
         agregarCaja(lado * 58.0f, 17.0f, 0, 0.8f, 34, 0.8f, concreto);
         for (int j = 0;j < 5;++j) agregarCaja(lado * 58.0f, 34.0f, (-2.0f + j) * 1.3f, 1.5f, 0.8f, 1.0f, reflectores ? glm::vec3(1.0f, 0.92f, 0.55f) : gris);
     }
@@ -915,6 +925,7 @@ void main() {
     glGetShaderiv(fs, GL_COMPILE_STATUS, &ok); if (!ok) std::cerr << "Fragment shader compilation failed\n";
     glAttachShader(programa, vs); glAttachShader(programa, fs); glLinkProgram(programa); glGetProgramiv(programa, GL_LINK_STATUS, &ok);
     if (!ok) std::cerr << "Shader link failed\n"; glDeleteShader(vs); glDeleteShader(fs);
+    construirEscenario();
     construirVallasYConos();
 
     // 3. Creo los VAO/VBO de la cancha, cubos, conos y fuegos artificiales.
@@ -1322,7 +1333,7 @@ void main() {
             glm::vec3 centroCamaraJugada = (animando || jugadaTerminada) ? glm::mix(inicioJugada, objetivoJugada, glm::clamp(tiempoAnimacion / 5.8f, 0.0f, 1.0f)) : jugador;
             objetivo = (camaraAutobus ? posicionAutobus : centroCamaraJugada) + glm::vec3(0, 2.0f, 0);
             float pitch = glm::radians(glm::clamp(anguloMouseY, 10.0f, 80.0f));
-            posCam = objetivo - frente * (zoomCamara * cos(pitch)) + glm::vec3(0, zoomCamara * sin(pitch), 0);
+            posCam = objetivo - frente * (zoomCamara * std::cos(pitch)) + glm::vec3(0, zoomCamara * std::sin(pitch), 0);
         }
         // Construyo las matrices de vista y perspectiva para proyectar la escena.
         glm::mat4 vista = glm::lookAt(posCam, objetivo, glm::vec3(0, 1, 0)); int ww, hh; glfwGetFramebufferSize(window, &ww, &hh); if (hh == 0) hh = 1;
@@ -1395,11 +1406,11 @@ void main() {
         // Tomo las dimensiones del modelo completo para centrarlo y escalarlo
         // antes de aplicar las transformaciones de sus articulaciones.
         const ModeloOBJ& marcoJugador = modelos[9];
-        const float escalaJugador = 3.2f / marcoJugador.extensionMaximaModelo();
         glm::vec3 centroJugador = marcoJugador.centroModelo();
         // La matriz raiz posiciona y orienta al personaje; cada extremidad se
         // transforma despues con respecto a esta base comun.
-        auto crearRaizJugador = [&](glm::vec3 posicion, float giroY) {
+        auto crearRaizJugador = [&](glm::vec3 posicion, float giroY, float tamano) {
+            float escalaJugador = tamano / marcoJugador.extensionMaximaModelo();
             glm::mat4 raiz(1.0f);
             raiz = glm::translate(raiz, posicion + glm::vec3(0, (centroJugador.y - marcoJugador.extensionVerticalMinima()) * escalaJugador, 0));
             raiz = glm::rotate(raiz, glm::radians(giroY), glm::vec3(0, 1, 0));
@@ -1407,7 +1418,7 @@ void main() {
             return glm::translate(raiz, -centroJugador);
             };
         float rumboJugador = (animando || jugadaTerminada) ? glm::degrees(std::atan2(direccionTiro.x, direccionTiro.z)) : -90.0f;
-        glm::mat4 raizJugador = crearRaizJugador(jugador, rumboJugador);
+        glm::mat4 raizJugador = crearRaizJugador(jugador, rumboJugador, 3.2f);
         const glm::vec3 colorAtlas(0.04f, 0.06f, 0.16f), colorCruzAzul(0.05f, 0.30f, 0.92f);
         // Dibuja la pose neutral del jugador, usando la misma raiz para que las
         // piezas importadas queden unidas como un modelo articulado.
@@ -1448,7 +1459,7 @@ void main() {
         }
         else if (jugadorEnMovimiento) {
             float paso = sin((float)ahora * 9.0f) * 24.0f; caderaDer = paso; caderaIzq = -paso;
-            rodillaDer = glm::max(0.0f, sin((float)ahora * 9.0f + 1.4f)) * 25.0f; rodillaIzq = glm::max(0.0f, sin((float)ahora * 9.0f + PI + 1.4f)) * 25.0f;
+            rodillaDer = glm::max(0.0f, std::sin((float)ahora * 9.0f + 1.4f)) * 25.0f; rodillaIzq = glm::max(0.0f, std::sin((float)ahora * 9.0f + PI + 1.4f)) * 25.0f;
             tobilloDer = -rodillaDer * 0.25f; tobilloIzq = -rodillaIzq * 0.25f;
             brazos = -paso * 0.45f;
         }
@@ -1570,6 +1581,11 @@ void main() {
             modelos[PANTORRILLA_IZQ].dibujarConMatriz(programaModelos, vista, proy, raiz * caderaI * rodillaI, reflectores, uniforme, true, texturaUniforme);
             modelos[PIE_IZQ].dibujarConMatriz(programaModelos, vista, proy, raiz * caderaI * rodillaI * tobilloI, reflectores, uniforme, true, texturaUniforme);
             };
+        for (size_t i = 0; i < posicionesPublico.size(); ++i) {
+            bool azul = i % 2 == 0;
+            dibujaJugadorCompleto(crearRaizJugador(posicionesPublico[i].first, posicionesPublico[i].second, 3.2f),
+                azul ? colorCruzAzul : colorAtlas, azul ? texturaCruzAzul : texturaAtlas);
+        }
         if (!primeraPersona) {
             modelos[CUERPO_JUGADOR].dibujarConMatriz(programaModelos, vista, proy, raizJugador, reflectores, colorAtlas, true, texturaAtlas);
             modelos[BRAZO_SUP_DER].dibujarConMatriz(programaModelos, vista, proy, raizJugador * hombroDerM, reflectores, colorAtlas, true, texturaAtlas);
@@ -1699,7 +1715,7 @@ void main() {
             }
             float orientacion = ((escenaJugada && (corre || i == 8 || i == 9)) || (balonLibre && corre)) ? rumboAtaque : -90.0f;
             if (porteroAtaja) orientacion = rumboAtaque + 180.0f;
-            glm::mat4 raiz = crearRaizJugador(posicion, orientacion);
+            glm::mat4 raiz = crearRaizJugador(posicion, orientacion, 3.2f);
             if (porteroAtaja) dibujaPorteroAtajada(raiz, colorAtlas, texturaAtlas, 1.0f, intensidadAtajada);
             else if (corre) dibujaJugadorCorriendo(raiz, colorAtlas, texturaAtlas, fase, impulso);
             else dibujaJugadorCompleto(raiz, colorAtlas, texturaAtlas);
@@ -1749,7 +1765,7 @@ void main() {
             }
             float orientacion = (corre || (escenaJugada && i == 0)) ? rumboAtaque : 90.0f;
             if (porteroAtaja) orientacion = rumboAtaque + 180.0f;
-            glm::mat4 raiz = crearRaizJugador(posicion, orientacion);
+            glm::mat4 raiz = crearRaizJugador(posicion, orientacion, 3.2f);
             if (porteroAtaja) dibujaPorteroAtajada(raiz, colorCruzAzul, texturaCruzAzul, 1.0f, intensidadAtajada);
             else if (corre) dibujaJugadorCorriendo(raiz, colorCruzAzul, texturaCruzAzul, PI * 0.5f, 0.0f);
             else dibujaJugadorCompleto(raiz, colorCruzAzul, texturaCruzAzul);
@@ -1758,8 +1774,8 @@ void main() {
         // Distribucion simetrica de cuatro suplentes por cada banca.
         const float asientosX[4] = { -2.4f,-0.8f,0.8f,2.4f };
         for (float x : asientosX) {
-            dibujaJugadorSentado(crearRaizJugador(glm::vec3(x, -0.25f, -27.0f), 0.0f), colorAtlas, texturaAtlas, -65.0f);
-            dibujaJugadorSentado(crearRaizJugador(glm::vec3(x, -0.25f, 27.0f), 180.0f), colorCruzAzul, texturaCruzAzul, -65.0f);
+            dibujaJugadorSentado(crearRaizJugador(glm::vec3(x, -0.25f, -27.0f), 0.0f, 3.2f), colorAtlas, texturaAtlas, -65.0f);
+            dibujaJugadorSentado(crearRaizJugador(glm::vec3(x, -0.25f, 27.0f), 180.0f, 3.2f), colorCruzAzul, texturaCruzAzul, -65.0f);
         }
         // El técnico se coloca delante del grupo, entre la banca y la cancha, y mira al terreno.
         // Se usa la geometría original tintada; no se agregan cubos por encima del personaje.
@@ -1767,8 +1783,8 @@ void main() {
         auto dibujaEntrenador = [&](const glm::mat4& raiz) {
             dibujaJugadorCompleto(raiz, colorTecnico, texturaAtlas);
             };
-        dibujaEntrenador(crearRaizJugador(glm::vec3(0.0f, 0.0f, -25.2f), 0.0f));
-        dibujaEntrenador(crearRaizJugador(glm::vec3(0.0f, 0.0f, 25.2f), 180.0f));
+        dibujaEntrenador(crearRaizJugador(glm::vec3(0.0f, 0.0f, -25.2f), 0.0f, 3.2f));
+        dibujaEntrenador(crearRaizJugador(glm::vec3(0.0f, 0.0f, 25.2f), 180.0f, 3.2f));
         // El arbitro se conserva como modelo completo en el centro de la escena.
         modelos[10].dibujar(programaModelos, vista, proy, arbitro, 3.2f, 180.0f, reflectores);
         glUseProgram(programa);
