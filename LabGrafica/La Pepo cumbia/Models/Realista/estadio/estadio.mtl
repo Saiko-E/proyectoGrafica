@@ -15,6 +15,7 @@ map_Bump textures/concreto_normal.png
 
 newmtl estadio_metal
 Ns 64.0
+Pm 0.80
 Ka 1.0 1.0 1.0
 Kd 1.0 1.0 1.0
 Ks 0.5 0.5 0.5

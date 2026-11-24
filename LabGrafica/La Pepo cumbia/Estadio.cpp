@@ -3,7 +3,11 @@
 #include <cmath>
 #include <string>
 #include <utility>
+#include <fstream>
+#include <sstream>
 #include "ModeloOBJ.h"
+#include "ModeloGLTF.h"
+#include "Skybox.h"
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
@@ -525,6 +529,16 @@ glm::vec3 posicionAutobus(-78.0f, 0.0f, 48.0f);
 float rumboAutobus = 90.0f;
 bool camaraAutobus = false;
 glm::vec3 arbitro(7.0f, 0.0f, -4.0f);
+// Iluminacion interactiva: F reflectores, L luz del marcador, M dia/noche, U show de luces.
+int modoLuzMarcador = 0;                 // 0 calida, 1 verde, 2 blanca, 3 roja, 4 apagada
+bool esDeDia = false;                    // M alterna; la transicion se anima con 'mezclaDia'
+float mezclaDia = 0.0f;
+bool showLuces = false; float tiempoShow = 0.0f;
+// Animaciones hechas en Blender (glTF): X senal del arbitro (huesos), P trote de un
+// jugador de calentamiento (huesos) y Z repeticion del gol (trayectoria del balon).
+bool senalArbitro = false; float tiempoSenal = 0.0f;
+bool troteActivo = true; float tiempoTrote = 0.0f;
+bool repeticionGol = false; float tiempoRepeticion = 0.0f;
 float tiempoAnimacion = 0.0f;
 
 // Keyframes del balon: tiempo, avance entre origen y porteria, altura y desvio lateral.
@@ -770,6 +784,22 @@ void tecla(GLFWwindow* w, int key, int, int action, int) {
         if (key == GLFW_KEY_T) { camaraAutobus = !camaraAutobus; primeraPersona = false; camaraLibre = false; }
         if (key == GLFW_KEY_B) { posicionAutobus = glm::vec3(-78.0f, 0.0f, 48.0f); rumboAutobus = 90.0f; }
         if (key == GLFW_KEY_F) reflectores = !reflectores;
+        // L: color de la luz puntual del marcador (calida, verde, blanca, roja, apagada).
+        if (key == GLFW_KEY_L) {
+            modoLuzMarcador = (modoLuzMarcador + 1) % 5;
+            const char* nombres[5] = { "calida", "verde", "blanca", "roja", "apagada" };
+            std::cout << "Luz del marcador: " << nombres[modoLuzMarcador] << std::endl;
+        }
+        // M: cambia entre dia y noche (sol/luna, luz ambiental y skybox con transicion suave).
+        if (key == GLFW_KEY_M) { esDeDia = !esDeDia; std::cout << (esDeDia ? "Amanece" : "Anochece") << std::endl; }
+        // U: show de luces con la animacion de intensidad hecha en Blender.
+        if (key == GLFW_KEY_U) { showLuces = !showLuces; tiempoShow = 0.0f; if (showLuces) reflectores = true; }
+        // X: el arbitro marca falta (animacion de huesos exportada de Blender).
+        if (key == GLFW_KEY_X) { senalArbitro = true; tiempoSenal = 0.0f; }
+        // P: el jugador de calentamiento trota o se detiene (animacion de huesos en ciclo).
+        if (key == GLFW_KEY_P) troteActivo = !troteActivo;
+        // Z: repeticion del gol con la trayectoria del balon animada en Blender.
+        if (key == GLFW_KEY_Z) { repeticionGol = true; tiempoRepeticion = 0.0f; }
         if (key == GLFW_KEY_G) { golesLocal = (golesLocal + 1) % 100; std::cout << "Marcador local: " << golesLocal << " - visitante: " << golesVisita << std::endl; }
         if (key == GLFW_KEY_H) { golesVisita = (golesVisita + 1) % 100; std::cout << "Marcador local: " << golesLocal << " - visitante: " << golesVisita << std::endl; }
         if (key == GLFW_KEY_R) { golesLocal = golesVisita = 0; animando = false; jugadaTerminada = false; marcadorJugadaActualizado = false; tiempoAnimacion = 0.0f; }
@@ -866,7 +896,7 @@ int main() {
     if (!window) { glfwTerminate(); return -1; } // Libero GLFW si no se pudo abrir la ventana.
     glfwMakeContextCurrent(window); glfwSwapInterval(1); glewExperimental = GL_TRUE;
     if (glewInit() != GLEW_OK) { glfwDestroyWindow(window); glfwTerminate(); return -1; } // GLEW habilita las funciones de OpenGL usadas en el proyecto.
-    std::cout << "Controles: WASD jugador/camara libre | J pase | K tiro | I/O apuntar | espacio jugada por keyframes | N devolver balon sin borrar marcador | mouse mirar/orbitar | C camara libre (E/Q altura) | V primera/tercera persona | rueda o RePág/AvPág zoom | T camara autobus | flechas conducir autobus | G/H marcador | R reiniciar marcador | F reflectores | B autobus | ESC salir" << std::endl;
+    std::cout << "Controles: WASD jugador/camara libre | J pase | K tiro | I/O apuntar | espacio jugada por keyframes | N devolver balon sin borrar marcador | mouse mirar/orbitar | C camara libre (E/Q altura) | V primera/tercera persona | rueda o RePág/AvPág zoom | T camara autobus | flechas conducir autobus | G/H marcador | R reiniciar marcador | F reflectores | L luz del marcador | M dia/noche | U show de luces | X senal del arbitro | P trote de calentamiento | Z repeticion del gol | B autobus | ESC salir" << std::endl;
     glfwSetFramebufferSizeCallback(window, cambiarTamano); glfwSetKeyCallback(window, tecla); glfwSetCursorPosCallback(window, cursor); glfwSetScrollCallback(window, rueda);
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED); glEnable(GL_DEPTH_TEST); glDisable(GL_CULL_FACE);
 
@@ -888,27 +918,29 @@ uniform int uiMode;
 uniform vec3 spotPos[4];
 uniform vec3 spotDir[4];
 uniform sampler2D grassTexture;
+uniform vec3 sunDir;        // direccion hacia el sol (dia) o la luna (noche)
+uniform vec3 sunColor;
+uniform vec3 ambientColor;
+uniform float lampIntensity;
 out vec4 color;
 
 // Iluminacion para geometria sencilla: una base ambiental y una luz
 // direccional general permanecen activas; los reflectores agregan sus conos.
-float stadiumLight(vec3 normal) {
-    vec3 direccionDia = normalize(vec3(-0.35, 0.86, 0.30));
-    float ambiente = 0.22;
-    float direccional = max(dot(normal, direccionDia), 0.0) * 0.34;
-    float result = ambiente + direccional;
+vec3 stadiumLight(vec3 normal) {
+    vec3 result = ambientColor + sunColor * max(dot(normal, sunDir), 0.0);
     if (lamps == 1) {
         for (int i = 0; i < 4; ++i) {
             vec3 ray = world - spotPos[i];
             float d = length(ray);
             float cone = dot(normalize(ray), normalize(spotDir[i]));
-            float beam = smoothstep(0.28, 0.78, cone);
+            // Haz del reflector: nucleo concentrado sobre la cancha y un poco de luz dispersa.
+            float beam = smoothstep(0.80, 0.94, cone) + 0.22 * smoothstep(0.50, 0.80, cone);
             float diffuse = max(dot(normal, normalize(-ray)), 0.0);
             float attenuation = 1.0 / (1.0 + 0.006 * d + 0.00025 * d * d);
-            result += beam * diffuse * 1.8 * attenuation;
+            result += vec3(beam * diffuse * 1.8 * attenuation * lampIntensity);
         }
     }
-    return clamp(result, 0.20, 1.55);
+    return clamp(result, vec3(0.12), vec3(1.55));
 }
 
 void main() {
@@ -916,7 +948,7 @@ void main() {
     vec3 texel = texture(grassTexture, world.xz * 0.20).rgb * mix(0.64, 1.0, stripe);
     float isLine = step(0.80, min(vertexColor.r, min(vertexColor.g, vertexColor.b)));
     vec3 c = (field == 2) ? vertexColor : ((field == 1) ? mix(texel, vertexColor, isLine) : tint);
-    float illumination = uiMode == 1 ? 1.0 : max(0.55, stadiumLight(vec3(0, 1, 0)));
+    vec3 illumination = uiMode == 1 ? vec3(1.0) : max(vec3(0.30), stadiumLight(vec3(0, 1, 0)));
     color = vec4(c * illumination, 1.0);
 }
 )GLSL";
@@ -1020,7 +1052,31 @@ void main() {
     GLuint programaModelos = glCreateProgram(); GLuint modeloVS = glCreateShader(GL_VERTEX_SHADER), modeloFS = glCreateShader(GL_FRAGMENT_SHADER);
     // Este vertex shader transforma tambien la normal con la matriz inversa
     // transpuesta para que la iluminacion siga siendo correcta al escalar.
-    std::string vertexModelo = "#version 330 core\nlayout(location=0) in vec3 p; layout(location=1) in vec3 n; layout(location=2) in vec2 uv; uniform mat4 model,view,projection; out vec3 world; out vec3 normalWorld; out vec2 texCoord; void main(){ vec4 wp=model*vec4(p,1.0); world=wp.xyz; normalWorld=mat3(transpose(inverse(model)))*n; texCoord=uv; gl_Position=projection*view*wp; }";
+    // Vertex shader de modelos: OBJ estaticos y personajes glTF con esqueleto.
+    // Con skinned = 1 cada vertice se deforma con hasta 4 huesos (pesos normalizados).
+    std::string vertexModelo = R"GLSL(#version 330 core
+layout(location=0) in vec3 p;
+layout(location=1) in vec3 n;
+layout(location=2) in vec2 uv;
+layout(location=3) in vec4 articulaciones;
+layout(location=4) in vec4 pesos;
+uniform mat4 model, view, projection;
+uniform int skinned;
+uniform mat4 huesos[32];
+out vec3 world; out vec3 normalWorld; out vec2 texCoord;
+void main() {
+    mat4 piel = mat4(1.0);
+    if (skinned == 1)
+        piel = pesos.x * huesos[int(articulaciones.x)] + pesos.y * huesos[int(articulaciones.y)]
+             + pesos.z * huesos[int(articulaciones.z)] + pesos.w * huesos[int(articulaciones.w)];
+    mat4 m = model * piel;
+    vec4 wp = m * vec4(p, 1.0);
+    world = wp.xyz;
+    normalWorld = mat3(transpose(inverse(m))) * n;
+    texCoord = uv;
+    gl_Position = projection * view * wp;
+}
+)GLSL";
     std::string fragmentModelo = R"GLSL(#version 330 core
 in vec3 world;
 in vec3 normalWorld;
@@ -1031,12 +1087,35 @@ uniform vec3 teamColor;
 uniform int teamColorable;
 uniform int hasTexture;
 uniform float materialAlpha;   // 'd' del MTL (vidrio, policarbonato); 1 = opaco
+uniform sampler2D specularTexture;  // map_Ks horneado: 0 mate, 1 pulido
+uniform int hasSpecMap;
+uniform float shininess;            // Ns del MTL
+uniform float metallic;             // Pm del MTL
+uniform samplerCube cieloDia;       // skybox / mapa de ambiente
+uniform samplerCube cieloNoche;
+uniform float mezclaDia;
+uniform vec3 viewPos;
+uniform vec3 sunDir;
+uniform vec3 sunColor;
+uniform vec3 ambientColor;
+uniform float lampIntensity;
 uniform int lamps;
 uniform vec3 pointLightPos;
 uniform vec3 pointLightColor;
 uniform vec3 spotPos[4];
 uniform vec3 spotDir[4];
 out vec4 fragColor;
+
+// Termino especular de Phong: (R . V)^n con R el reflejo de la luz.
+float phong(vec3 N, vec3 L, vec3 V, float n) {
+    return pow(max(dot(reflect(-L, N), V), 0.0), n);
+}
+
+// Compresion suave de altas luces para que los reflectores no quemen el color.
+vec3 tonemap(vec3 c) {
+    vec3 exceso = max(c - 0.78, 0.0);
+    return min(c, vec3(0.78)) + exceso / (1.0 + exceso * 4.5);
+}
 
 // Ruido pseudoaleatorio por celda para evitar que los materiales arquitectonicos
 // queden completamente planos.
@@ -1094,41 +1173,91 @@ void main() {
     float fibraCesped = sin(world.x * 10.0 + world.z * 1.8 + sin(world.z * 0.65) * 2.0);
     vec3 albedoCesped = base * mix(0.62, 1.0, franjaCorte) * (0.93 + 0.07 * fibraCesped);
     base = mix(base, albedoCesped, mascaraVerde);
-    // La normal determina cuanto aporta cada reflector sobre la superficie.
-    vec3 normal = normalize(normalWorld);
-    // La luz ambiental da visibilidad uniforme y la direccional simula luz del dia.
-    // Los reflectores del estadio se suman despues cuando estan encendidos.
-    vec3 direccionDia = normalize(vec3(-0.35, 0.86, 0.30));
-    float ambiente = 0.20;
-    float direccional = max(dot(normal, direccionDia), 0.0) * 0.38;
-    float illumination = ambiente + direccional;
-    // Luz puntual calida junto al marcador; su aporte disminuye en todas
-    // direcciones segun la distancia y la orientacion de cada superficie.
+    // ---------------- Tecnica 1: modelo de iluminacion de Phong ----------------
+    // ambiente + difusa (Lambert) + especular (R.V)^n para el sol/luna, la luz
+    // puntual del marcador y los cuatro reflectores. El brillo de cada texel sale
+    // del mapa especular horneado (map_Ks).
+    vec3 N = normalize(normalWorld);
+    vec3 V = normalize(viewPos - world);
+    if (dot(N, V) < 0.0) N = -N;               // caras vistas por detras (red, banderas)
+    float brillo = hasSpecMap == 1 ? texture(specularTexture, texCoord).r : 0.12;
+    brillo *= 1.0 - mascaraVerde;              // el cesped es mate
+    float exponente = mix(4.0, max(shininess, 8.0) * 2.5, brillo);
+    vec3 difusa = ambientColor;
+    vec3 especular = vec3(0.0);
+    float nSol = max(dot(N, sunDir), 0.0);
+    difusa += sunColor * nSol;
+    especular += sunColor * phong(N, sunDir, V, exponente) * step(0.001, nSol);
+    // Luz puntual del marcador: su color cambia con la tecla L.
     vec3 haciaPuntual = pointLightPos - world;
     float distanciaPuntual = length(haciaPuntual);
-    float difusaPuntual = max(dot(normal, normalize(haciaPuntual)), 0.0);
+    vec3 Lp = haciaPuntual / max(distanciaPuntual, 0.001);
     float atenuacionPuntual = 1.0 / (1.0 + 0.08 * distanciaPuntual + 0.025 * distanciaPuntual * distanciaPuntual);
-    vec3 aportePuntual = pointLightColor * difusaPuntual * atenuacionPuntual * 0.75;
+    float nP = max(dot(N, Lp), 0.0);
+    difusa += pointLightColor * nP * atenuacionPuntual * 1.4;
+    especular += pointLightColor * phong(N, Lp, V, exponente) * atenuacionPuntual * 1.4 * step(0.001, nP);
     if (lamps == 1) for (int i = 0; i < 4; ++i) {
         vec3 ray = world - spotPos[i];
         float d = length(ray);
-        float cone = dot(normalize(ray), normalize(spotDir[i]));
-        float beam = smoothstep(0.28, 0.78, cone);
-        float diffuse = max(dot(normal, normalize(-ray)), 0.0);
-        illumination += beam * diffuse * 2.0 / (1.0 + 0.006 * d + 0.00025 * d * d);
+        vec3 L = -ray / max(d, 0.001);
+        float cono = dot(-L, normalize(spotDir[i]));
+        float beam = smoothstep(0.80, 0.94, cono) + 0.22 * smoothstep(0.50, 0.80, cono);
+        float aporte = beam * 2.0 * lampIntensity / (1.0 + 0.006 * d + 0.00025 * d * d);
+        float nL = max(dot(N, L), 0.0);
+        difusa += vec3(1.0, 0.97, 0.9) * nL * aporte;
+        especular += vec3(1.0, 0.97, 0.9) * phong(N, L, V, exponente) * aporte * step(0.001, nL);
     }
-    fragColor = vec4(base * clamp(illumination, 0.20, 1.55) + aportePuntual, materialAlpha);
+    difusa = min(difusa, vec3(1.6));
+    // ---------------- Tecnica 2: Fresnel (Schlick) + environment mapping ----------------
+    // La reflectancia crece en angulos rasantes; los metales (Pm) tinen el reflejo con su
+    // color y el vidrio se vuelve mas opaco y reflejante al verse de lado.
+    float cosV = clamp(dot(N, V), 0.0, 1.0);
+    vec3 F0 = mix(vec3(0.04), base, metallic);
+    vec3 F = F0 + (1.0 - F0) * pow(1.0 - cosV, 5.0);
+    vec3 R = reflect(-V, N);
+    vec3 entorno = mix(texture(cieloNoche, R).rgb, texture(cieloDia, R).rgb, mezclaDia);
+    float pulido = brillo * brillo;
+    vec3 colorEspecular = mix(vec3(1.0), base, metallic);
+    vec3 color = base * difusa * (1.0 - metallic * 0.75)
+               + especular * colorEspecular * brillo * (1.0 + metallic)
+               + entorno * F * mix(pulido, max(pulido, 0.35), metallic);
+    float alpha = materialAlpha;
+    if (materialAlpha < 0.999) alpha = clamp(materialAlpha + (1.0 - materialAlpha) * F.g, 0.0, 1.0);
+    fragColor = vec4(tonemap(color), alpha);
 }
 )GLSL";
     const char* mv = vertexModelo.c_str(); const char* mf = fragmentModelo.c_str(); glShaderSource(modeloVS, 1, &mv, nullptr); glShaderSource(modeloFS, 1, &mf, nullptr); glCompileShader(modeloVS); glCompileShader(modeloFS);
+    {
+        GLint okModelo = 0; char registro[2048];
+        glGetShaderiv(modeloVS, GL_COMPILE_STATUS, &okModelo);
+        if (!okModelo) { glGetShaderInfoLog(modeloVS, 2048, nullptr, registro); std::cerr << "Vertex shader de modelos: " << registro << std::endl; }
+        glGetShaderiv(modeloFS, GL_COMPILE_STATUS, &okModelo);
+        if (!okModelo) { glGetShaderInfoLog(modeloFS, 2048, nullptr, registro); std::cerr << "Fragment shader de modelos: " << registro << std::endl; }
+    }
     glAttachShader(programaModelos, modeloVS); glAttachShader(programaModelos, modeloFS); glLinkProgram(programaModelos);
+    {
+        GLint okEnlace = 0; glGetProgramiv(programaModelos, GL_LINK_STATUS, &okEnlace);
+        if (!okEnlace) { char registro[2048]; glGetProgramInfoLog(programaModelos, 2048, nullptr, registro); std::cerr << "Programa de modelos: " << registro << std::endl; }
+    }
     glDeleteShader(modeloVS); glDeleteShader(modeloFS);
     // Fuente puntual cálida colocada encima del marcador del estadio.
     glUseProgram(programaModelos);
     glUniform3f(glGetUniformLocation(programaModelos, "pointLightPos"), -62.0f, 20.0f, 0.0f);
     glUniform3f(glGetUniformLocation(programaModelos, "pointLightColor"), 1.0f, 0.72f, 0.38f);
     glUniform1f(glGetUniformLocation(programaModelos, "materialAlpha"), 1.0f);
+    // Unidades de textura fijas: 0 albedo, 1 brillo (map_Ks), 2 y 3 cube maps de dia y noche.
+    glUniform1i(glGetUniformLocation(programaModelos, "diffuseTexture"), 0);
+    glUniform1i(glGetUniformLocation(programaModelos, "specularTexture"), 1);
+    glUniform1i(glGetUniformLocation(programaModelos, "cieloDia"), 2);
+    glUniform1i(glGetUniformLocation(programaModelos, "cieloNoche"), 3);
+    glUniform1i(glGetUniformLocation(programaModelos, "skinned"), 0);
+    glUniform1i(glGetUniformLocation(programaModelos, "hasSpecMap"), 0);
+    glUniform1f(glGetUniformLocation(programaModelos, "metallic"), 0.0f);
+    glUniform1f(glGetUniformLocation(programaModelos, "shininess"), 32.0f);
     glUseProgram(programa);
+    // Skybox (cube map) de dia y de noche; tambien es el mapa de ambiente de los reflejos.
+    Skybox cielo;
+    cielo.inicializar("Models/Realista/skybox/dia", "Models/Realista/skybox/noche");
 
     struct Instancia { size_t modelo; glm::vec3 posicion; float tamano; float rotacion; float inclinacion; };
     // 6. Mantengo las rutas de los recursos en un solo arreglo para facilitar
@@ -1186,6 +1315,26 @@ void main() {
         if (uA) texturaAtlas = uA; else std::cerr << "No se pudo cargar Models/Realista/jugador_arbitro/textures/uniforme_atlas.jpg" << std::endl;
         if (uC) texturaCruzAzul = uC; else std::cerr << "No se pudo cargar Models/Realista/jugador_arbitro/textures/uniforme_cruz_azul.jpg" << std::endl;
     }
+    // Animaciones exportadas de Blender en glTF: dos esqueletos (arbitro y jugador)
+    // y la trayectoria del balon del gol. Si falta un archivo se dibuja la version OBJ.
+    ModeloGLTF arbitroAnimado, troteAnimado, balonGol;
+    const bool hayArbitroAnimado = arbitroAnimado.cargar("Models/Realista/animaciones/arbitro_senal.gltf");
+    const bool hayTrote = troteAnimado.cargar("Models/Realista/animaciones/jugador_trote.gltf");
+    const bool hayBalonGol = balonGol.cargar("Models/Realista/animaciones/balon_gol.gltf");
+    std::cout << "Animaciones de Blender (glTF): arbitro " << (hayArbitroAnimado ? "si" : "no") << " (" << arbitroAnimado.duracion(0)
+              << " s), trote " << (hayTrote ? "si" : "no") << " (" << troteAnimado.duracion(0) << " s), balon del gol "
+              << (hayBalonGol ? "si" : "no") << " (" << balonGol.duracion(0) << " s)" << std::endl;
+    // Curva de intensidad del reflector (Iluminador_Estadio_Animado.blend): segundo, intensidad 0-1.
+    std::vector<glm::vec2> curvaShow;
+    {
+        std::ifstream archivoShow("Models/Realista/animaciones/iluminador_luz.txt"); std::string linea;
+        while (std::getline(archivoShow, linea)) {
+            if (linea.empty() || linea[0] == '#') continue;
+            std::istringstream ss(linea); glm::vec2 clave;
+            if (ss >> clave.x >> clave.y) curvaShow.push_back(clave);
+        }
+        if (curvaShow.empty()) std::cerr << "No se encontro la animacion del show de luces (iluminador_luz.txt)" << std::endl;
+    }
     const char* filtrosArticulados[] = {
         "Jugador_CHICHARITO|CHICHARITO_|!Jugador_CHICHARITO_antebrazo_derecho_|!Jugador_CHICHARITO_antebrazo_izquierdo_|!Jugador_CHICHARITO_codo_derecho_|!Jugador_CHICHARITO_codo_izquierdo_|!Jugador_CHICHARITO_muslo_derecha_|!Jugador_CHICHARITO_muslo_izquierda_|!Jugador_CHICHARITO_pierna_derecha_|!Jugador_CHICHARITO_pierna_izquierda_|!Jugador_CHICHARITO_rodilla_derecha_|!Jugador_CHICHARITO_rodilla_izquierda_|!Jugador_CHICHARITO_tobillo_derecha_|!Jugador_CHICHARITO_tobillo_izquierda_|!Jugador_CHICHARITO_banda_media_|!Jugador_CHICHARITO_agujeta_|!Jugador_CHICHARITO_suela_|!Jugador_CHICHARITO_tachon_|!CHICHARITO_\\|_palma_|!CHICHARITO_\\|_manga_anatómica_",
         "CHICHARITO_\\|_manga_anatómica_derecha_",
@@ -1236,6 +1385,9 @@ void main() {
     // Los focos de luz coinciden con los cuatro reflectores ya colocados en la escena.
     const glm::vec3 posicionesSpot[4] = { glm::vec3(-50,29,-40),glm::vec3(50,29,-40),glm::vec3(-50,29,40),glm::vec3(50,29,40) };
     glm::vec3 direccionesSpot[4];
+    // Valores de iluminacion que cambian cada cuadro (dia/noche, luz del marcador, show).
+    glm::vec3 direccionSol(0, 1, 0), colorSol(0.2f), colorAmbiente(0.2f), colorPuntual(1.0f, 0.72f, 0.38f), posicionCamaraActual(0.0f);
+    float intensidadReflectores = 1.0f;
     for (int i = 0;i < 4;++i) direccionesSpot[i] = glm::normalize(-posicionesSpot[i]);
     // Envio al shader las posiciones y direcciones de los cuatro reflectores.
     auto cargarSpots = [&](GLuint programaActivo) {
@@ -1244,12 +1396,44 @@ void main() {
             glUniform3fv(glGetUniformLocation(programaActivo, nombrePos.c_str()), 1, glm::value_ptr(posicionesSpot[i]));
             glUniform3fv(glGetUniformLocation(programaActivo, nombreDir.c_str()), 1, glm::value_ptr(direccionesSpot[i]));
         }
+        glUniform3fv(glGetUniformLocation(programaActivo, "sunDir"), 1, glm::value_ptr(direccionSol));
+        glUniform3fv(glGetUniformLocation(programaActivo, "sunColor"), 1, glm::value_ptr(colorSol));
+        glUniform3fv(glGetUniformLocation(programaActivo, "ambientColor"), 1, glm::value_ptr(colorAmbiente));
+        glUniform3fv(glGetUniformLocation(programaActivo, "pointLightColor"), 1, glm::value_ptr(colorPuntual));
+        glUniform3fv(glGetUniformLocation(programaActivo, "viewPos"), 1, glm::value_ptr(posicionCamaraActual));
+        glUniform1f(glGetUniformLocation(programaActivo, "lampIntensity"), intensidadReflectores);
+        glUniform1f(glGetUniformLocation(programaActivo, "mezclaDia"), mezclaDia);
         };
     glUseProgram(programa); glUniform1i(glGetUniformLocation(programa, "grassTexture"), 0);
     double anterior = glfwGetTime();
     // 7. Ciclo principal: mido el tiempo, proceso entrada, actualizo estado y dibujo.
     while (!glfwWindowShouldClose(window)) {
         double ahora = glfwGetTime(); float dt = (float)glm::clamp(ahora - anterior, 0.0, 0.05); anterior = ahora; glfwPollEvents();
+        // Transicion dia/noche (animacion por codigo) y relojes de las animaciones de Blender.
+        mezclaDia = glm::clamp(mezclaDia + (esDeDia ? 1.0f : -1.0f) * dt * 0.4f, 0.0f, 1.0f);
+        if (showLuces) { tiempoShow += dt; if (curvaShow.empty() || tiempoShow > curvaShow.back().x) showLuces = false; }
+        if (senalArbitro) { tiempoSenal += dt * 0.45f; if (tiempoSenal > arbitroAnimado.duracion(0) + 0.3f) senalArbitro = false; }
+        if (troteActivo) tiempoTrote += dt;
+        if (repeticionGol) { tiempoRepeticion += dt; if (tiempoRepeticion > balonGol.duracion(0) + 1.5f) repeticionGol = false; }
+        {
+            // Sol (dia) y luna (noche) en la misma posicion que en el skybox renderizado.
+            const glm::vec3 haciaLuna = glm::normalize(glm::vec3(0.492f, 0.643f, -0.587f));
+            const glm::vec3 haciaSol = glm::normalize(glm::vec3(-0.50f, 0.62f, 0.60f));
+            float d = mezclaDia * mezclaDia * (3.0f - 2.0f * mezclaDia);
+            direccionSol = glm::normalize(glm::mix(haciaLuna, haciaSol, d));
+            colorSol = glm::mix(glm::vec3(0.16f, 0.19f, 0.28f), glm::vec3(1.0f, 0.94f, 0.82f), d);
+            colorAmbiente = glm::mix(glm::vec3(0.15f, 0.16f, 0.21f), glm::vec3(0.40f, 0.43f, 0.50f), d);
+            const glm::vec3 coloresPuntual[5] = { glm::vec3(1.0f, 0.72f, 0.38f), glm::vec3(0.15f, 1.0f, 0.35f),
+                glm::vec3(1.0f), glm::vec3(1.0f, 0.15f, 0.12f), glm::vec3(0.0f) };
+            colorPuntual = coloresPuntual[modoLuzMarcador];
+            // Show de luces: la intensidad de los reflectores sigue la curva de Blender.
+            intensidadReflectores = 1.0f;
+            if (showLuces && curvaShow.size() > 1) {
+                size_t k = 1; while (k + 1 < curvaShow.size() && curvaShow[k].x < tiempoShow) ++k;
+                float u = glm::clamp((tiempoShow - curvaShow[k - 1].x) / glm::max(curvaShow[k].x - curvaShow[k - 1].x, 0.0001f), 0.0f, 1.0f);
+                intensidadReflectores = 0.08f + 1.5f * glm::mix(curvaShow[k - 1].y, curvaShow[k].y, u);
+            }
+        }
         float yaw = glm::radians(anguloMouseX); glm::vec3 frente = glm::normalize(glm::vec3(cos(yaw), 0, sin(yaw)));
         glm::vec3 derecha = glm::normalize(glm::cross(frente, glm::vec3(0, 1, 0)));
         float velocidadJugador = primeraPersona ? 9.0f : 8.0f;
@@ -1374,9 +1558,12 @@ void main() {
             posCam = objetivo - frente * (zoomCamara * std::cos(pitch)) + glm::vec3(0, zoomCamara * std::sin(pitch), 0);
         }
         // Construyo las matrices de vista y perspectiva para proyectar la escena.
+        posicionCamaraActual = posCam;
         glm::mat4 vista = glm::lookAt(posCam, objetivo, glm::vec3(0, 1, 0)); int ww, hh; glfwGetFramebufferSize(window, &ww, &hh); if (hh == 0) hh = 1;
         glm::mat4 proy = glm::perspective(glm::radians(campoVision), (float)ww / hh, 0.1f, 520.0f);
-        glViewport(0, 0, ww, hh); glClearColor(0.015f, 0.035f, 0.08f, 1); glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); glUseProgram(programa); cargarSpots(programa);
+        glViewport(0, 0, ww, hh); glClearColor(0.015f, 0.035f, 0.08f, 1); glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        cielo.dibujar(vista, proy, mezclaDia);   // skybox primero, sin escribir profundidad
+        glUseProgram(programa); cargarSpots(programa);
         glUniformMatrix4fv(locV, 1, GL_FALSE, glm::value_ptr(vista)); glUniformMatrix4fv(locP, 1, GL_FALSE, glm::value_ptr(proy)); glUniform1i(locLamps, reflectores ? 1 : 0); glUniform1i(locUI, 0);
         // Dibujo primero la arquitectura y los modelos estaticos del estadio.
         glBindVertexArray(cuboVao);
@@ -1391,6 +1578,14 @@ void main() {
             if ((animando || jugadaTerminada) && esPorteriaObjetivo && desdeImpacto >= 0.0f && desdeImpacto < 1.0f) {
                 float vibracion = std::sin(desdeImpacto * 31.0f) * std::exp(-desdeImpacto * 5.0f);
                 instanciaAnimada.posicion.x += direccionTiro.x * 0.35f * vibracion;
+                instanciaAnimada.rotacion += 2.2f * vibracion;
+                instanciaAnimada.inclinacion += 1.5f * vibracion;
+            }
+            // La repeticion del gol (Z) tambien sacude la porteria derecha cuando el balon toca la red.
+            float desdeImpactoRepeticion = tiempoRepeticion - 0.54f;
+            if (repeticionGol && item.modelo == 11 && item.posicion.x > 0.0f && desdeImpactoRepeticion >= 0.0f && desdeImpactoRepeticion < 1.0f) {
+                float vibracion = std::sin(desdeImpactoRepeticion * 31.0f) * std::exp(-desdeImpactoRepeticion * 5.0f);
+                instanciaAnimada.posicion.x += 0.35f * vibracion;
                 instanciaAnimada.rotacion += 2.2f * vibracion;
                 instanciaAnimada.inclinacion += 1.5f * vibracion;
             }
@@ -1413,7 +1608,7 @@ void main() {
         glUniform1i(locField, 0); glBindVertexArray(cuboVao);
         glUniformMatrix4fv(locV, 1, GL_FALSE, glm::value_ptr(vista)); glUniformMatrix4fv(locP, 1, GL_FALSE, glm::value_ptr(proy)); glUniform1i(locLamps, reflectores ? 1 : 0);
         glBindVertexArray(cuboVao);
-        auto dibujaParte = [&](glm::vec3 pos, glm::vec3 escala, glm::vec3 color, glm::mat4 base) { glm::mat4 m = base; m = glm::translate(m, pos); m = glm::scale(m, escala); glUniformMatrix4fv(locM, 1, GL_FALSE, glm::value_ptr(m)); glUniform3fv(locColor, 1, glm::value_ptr(color)); glDrawArrays(GL_TRIANGLES, 0, 36); };
+        auto dibujaParte = [&](glm::vec3 pos, glm::vec3 escala, glm::vec3 color, glm::mat4 base) { glm::mat4 m = base; m = glm::translate(m, pos); m = glm::scale(m, escala); glUniformMatrix4fv(locM, 1, GL_FALSE, glm::value_ptr(m)); glUniform3fv(locColor, 1, glm::value_ptr(color)); glBindVertexArray(cuboVao); glDrawArrays(GL_TRIANGLES, 0, 36); };
         // Paneles publicitarios a ras del perimetro, sin cerrar accesos a las porterias
         // ni ocupar el hueco central de las bancas. Los conos quedan en el area de practica.
         glUseProgram(programa); glUniform1i(locField, 0); glBindVertexArray(cuboVao);
@@ -1823,8 +2018,30 @@ void main() {
             };
         dibujaEntrenador(crearRaizJugador(glm::vec3(0.0f, 0.0f, -25.2f), 0.0f, 3.2f));
         dibujaEntrenador(crearRaizJugador(glm::vec3(0.0f, 0.0f, 25.2f), 180.0f, 3.2f));
-        // El arbitro se conserva como modelo completo en el centro de la escena.
-        modelos[10].dibujar(programaModelos, vista, proy, arbitro, 3.2f, 180.0f, reflectores);
+        // El arbitro usa el modelo con esqueleto: X reproduce la senal de falta hecha en Blender.
+        if (hayArbitroAnimado) {
+            arbitroAnimado.pose(senalArbitro ? 0 : -1, tiempoSenal);
+            arbitroAnimado.dibujar(programaModelos, vista, proy, arbitroAnimado.matrizInstancia(arbitro, 3.2f, 180.0f), reflectores);
+        }
+        else modelos[10].dibujar(programaModelos, vista, proy, arbitro, 3.2f, 180.0f, reflectores);
+        // Jugador de calentamiento: ciclo de carrera con huesos (Blender) mientras el codigo
+        // lo desplaza por un ovalo dentro de la cancha. P lo detiene o lo reanuda.
+        if (hayTrote) {
+            const float radioX = 28.0f, radioZ = 18.5f, velocidadTrote = 6.5f;
+            float angulo = tiempoTrote * velocidadTrote / (0.5f * (radioX + radioZ));
+            glm::vec3 posicionTrote(radioX * std::cos(angulo), 0.0f, radioZ * std::sin(angulo));
+            glm::vec3 tangente(-radioX * std::sin(angulo), 0.0f, radioZ * std::cos(angulo));
+            float rumboTrote = glm::degrees(std::atan2(tangente.x, tangente.z));
+            float ciclo = troteAnimado.duracion(0);
+            troteAnimado.pose(troteActivo ? 0 : -1, ciclo > 0.0f ? std::fmod(tiempoTrote, ciclo) : 0.0f);
+            troteAnimado.dibujar(programaModelos, vista, proy, troteAnimado.matrizInstancia(posicionTrote, 3.2f, rumboTrote), reflectores);
+        }
+        // Z: repeticion del gol. La trayectoria del balon viene de Porteria_Gol_Animada.blend y
+        // esta en coordenadas de la porteria, asi que se dibuja con la matriz de la porteria derecha.
+        if (hayBalonGol && repeticionGol) {
+            balonGol.pose(0, tiempoRepeticion);
+            balonGol.dibujar(programaModelos, vista, proy, modelos[11].matrizInstancia(glm::vec3(33.4f, 0.0f, 0.0f), 8.0f, -90.0f), reflectores);
+        }
         glUseProgram(programa);
         // Marcador de siete segmentos: G suma local, H suma visita, R reinicia.
         const int segmentos[10][7] = { {1,1,1,1,1,1,0},{0,1,1,0,0,0,0},{1,1,0,1,1,0,1},{1,1,1,1,0,0,1},{0,1,1,0,0,1,1},{1,0,1,1,0,1,1},{1,0,1,1,1,1,1},{1,1,1,0,0,0,0},{1,1,1,1,1,1,1},{1,1,1,1,0,1,1} };
@@ -1970,5 +2187,6 @@ void main() {
     if (texturaTifoCruz) glDeleteTextures(1, &texturaTifoCruz); if (texturaTifoPumas) glDeleteTextures(1, &texturaTifoPumas);
     // Elimino texturas, buffers, arreglos de vertices y shaders creados en OpenGL.
     glDeleteVertexArrays(1, &vao); glDeleteBuffers(1, &vbo); glDeleteVertexArrays(1, &cuboVao); glDeleteBuffers(1, &cuboVbo); glDeleteVertexArrays(1, &conosVao); glDeleteBuffers(1, &conosVbo); glDeleteVertexArrays(1, &tifoVao); glDeleteBuffers(1, &tifoVbo); glDeleteVertexArrays(1, &fuegosVao); glDeleteBuffers(1, &fuegosVbo); glDeleteProgram(programa); glDeleteProgram(programaModelos);
+    cielo.liberar(); arbitroAnimado.liberar(); troteAnimado.liberar(); balonGol.liberar();
     glfwDestroyWindow(window); glfwTerminate(); return 0;
 }

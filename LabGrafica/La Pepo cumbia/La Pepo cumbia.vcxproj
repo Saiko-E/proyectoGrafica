@@ -21,6 +21,9 @@
   <ItemGroup>
     <ClInclude Include="Shader.h" />
     <ClInclude Include="ModeloOBJ.h" />
+    <ClInclude Include="ModeloGLTF.h" />
+    <ClInclude Include="Skybox.h" />
+    <ClInclude Include="cgltf.h" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Models\ProyectoGrafica\**\*">
