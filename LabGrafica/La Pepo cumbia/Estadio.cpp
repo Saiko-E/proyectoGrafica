@@ -743,6 +743,10 @@ void construirEscenario() {
     agregarCaja(0, 0.0f, -69, 138, 0.3f, 0.5f, concreto); agregarCaja(0, 0.0f, 69, 138, 0.3f, 0.5f, concreto);
     agregarCaja(-69, 0, 0, 0.5f, 0.3f, 138, concreto); agregarCaja(69, 0, 0, 0.5f, 0.3f, 138, concreto);
     for (int x = -2;x <= 2;++x) agregarCaja(x * 2.2f, 2.1f, 57, 1.8f, 4.2f, 3.0f, AZUL);
+    // Explanada exterior: losa rectangular bajo el estadio que cubre el carril del
+    // autobus (x = 95, z de -75 a 74) para que no parezca flotar en el vacio.
+    // Su cara superior queda en y = -0.05, apenas debajo del piso del modelo.
+    agregarCaja(0, -0.15f, 0, 260.0f, 0.2f, 220.0f, glm::vec3(0.30f, 0.30f, 0.31f));
 }
 
 // El callback de mouse actualiza la direccion de observacion de la camara.
@@ -945,6 +949,49 @@ void main() {
     glGetShaderiv(fs, GL_COMPILE_STATUS, &ok); if (!ok) std::cerr << "Fragment shader compilation failed\n";
     glAttachShader(programa, vs); glAttachShader(programa, fs); glLinkProgram(programa); glGetProgramiv(programa, GL_LINK_STATUS, &ok);
     if (!ok) std::cerr << "Shader link failed\n"; glDeleteShader(vs); glDeleteShader(fs);
+
+    // Cielo nocturno estrellado: un rectangulo que cubre la pantalla y, por cada
+    // pixel, reconstruye la direccion de vista para dibujar degradado, estrellas y luna.
+    GLuint programaCielo = glCreateProgram(); GLuint cieloVS = glCreateShader(GL_VERTEX_SHADER), cieloFS = glCreateShader(GL_FRAGMENT_SHADER);
+    const char* vertCielo = "#version 330 core\nlayout(location=0) in vec2 position; out vec2 screenPosition; void main(){ screenPosition=position; gl_Position=vec4(position,0.0,1.0);}";
+    const char* fragCielo = R"GLSL(#version 330 core
+in vec2 screenPosition;
+out vec4 color;
+uniform mat4 inverseProjection;
+uniform mat3 inverseViewRotation;
+
+void main() {
+    vec4 cameraRay = inverseProjection * vec4(screenPosition, 1.0, 1.0);
+    vec3 worldDirection = normalize(inverseViewRotation * cameraRay.xyz);
+    float horizon = 1.0 - smoothstep(-0.08, 0.55, worldDirection.y);
+    vec3 night = mix(vec3(0.008, 0.018, 0.055), vec3(0.07, 0.11, 0.19), horizon);
+
+    vec3 cell = floor(worldDirection * 120.0);
+    float seed = fract(sin(dot(cell, vec3(127.1, 311.7, 74.7))) * 43758.5453);
+    float starDistance = length(worldDirection - normalize(cell + 0.5));
+    float stars = step(0.982, seed) * (1.0 - smoothstep(0.0010, 0.0025, starDistance));
+    stars *= smoothstep(0.01, 0.18, worldDirection.y);
+
+    vec3 moonDirection = normalize(vec3(-0.45, 0.46, -0.77));
+    float moonDistance = length(worldDirection - moonDirection);
+    float moon = 1.0 - smoothstep(0.035, 0.038, moonDistance);
+    float shadow = 1.0 - smoothstep(0.032, 0.036,
+        length(worldDirection - normalize(moonDirection + vec3(0.020, 0.010, 0.0))));
+    night += vec3(0.07, 0.09, 0.16) * exp(-moonDistance * moonDistance * 220.0);
+    color = vec4(mix(night + stars * vec3(0.65, 0.75, 0.95),
+        vec3(0.93, 0.94, 0.85), moon * (1.0 - shadow)), 1.0);
+}
+)GLSL";
+    glShaderSource(cieloVS, 1, &vertCielo, nullptr); glShaderSource(cieloFS, 1, &fragCielo, nullptr); glCompileShader(cieloVS); glCompileShader(cieloFS);
+    glGetShaderiv(cieloFS, GL_COMPILE_STATUS, &ok); if (!ok) std::cerr << "Sky shader compilation failed\n";
+    glAttachShader(programaCielo, cieloVS); glAttachShader(programaCielo, cieloFS); glLinkProgram(programaCielo);
+    glDeleteShader(cieloVS); glDeleteShader(cieloFS);
+    GLint locCieloProy = glGetUniformLocation(programaCielo, "inverseProjection"), locCieloVista = glGetUniformLocation(programaCielo, "inverseViewRotation");
+    const float pantallaCielo[] = { -1,-1, 1,-1, 1,1, -1,-1, 1,1, -1,1 };
+    GLuint cieloVao, cieloVbo; glGenVertexArrays(1, &cieloVao); glGenBuffers(1, &cieloVbo); glBindVertexArray(cieloVao); glBindBuffer(GL_ARRAY_BUFFER, cieloVbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(pantallaCielo), pantallaCielo, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0); glEnableVertexAttribArray(0);
+    glBindVertexArray(0);
     construirEscenario();
     construirVallasYConos();
 
@@ -1407,7 +1454,16 @@ void main() {
         // Construyo las matrices de vista y perspectiva para proyectar la escena.
         glm::mat4 vista = glm::lookAt(posCam, objetivo, glm::vec3(0, 1, 0)); int ww, hh; glfwGetFramebufferSize(window, &ww, &hh); if (hh == 0) hh = 1;
         glm::mat4 proy = glm::perspective(glm::radians(campoVision), (float)ww / hh, 0.1f, 520.0f);
-        glViewport(0, 0, ww, hh); glClearColor(0.015f, 0.035f, 0.08f, 1); glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); glUseProgram(programa); cargarSpots(programa);
+        glViewport(0, 0, ww, hh); glClearColor(0.015f, 0.035f, 0.08f, 1); glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        // El cielo va primero y sin profundidad, para que toda la escena quede por delante.
+        glUseProgram(programaCielo);
+        glm::mat4 proyInversa = glm::inverse(proy); glm::mat3 rotacionVistaInversa = glm::mat3(glm::inverse(vista));
+        glUniformMatrix4fv(locCieloProy, 1, GL_FALSE, glm::value_ptr(proyInversa));
+        glUniformMatrix3fv(locCieloVista, 1, GL_FALSE, glm::value_ptr(rotacionVistaInversa));
+        glDisable(GL_DEPTH_TEST); glDepthMask(GL_FALSE);
+        glBindVertexArray(cieloVao); glDrawArrays(GL_TRIANGLES, 0, 6);
+        glDepthMask(GL_TRUE); glEnable(GL_DEPTH_TEST);
+        glUseProgram(programa); cargarSpots(programa);
         glUniformMatrix4fv(locV, 1, GL_FALSE, glm::value_ptr(vista)); glUniformMatrix4fv(locP, 1, GL_FALSE, glm::value_ptr(proy)); glUniform1i(locLamps, reflectores ? 1 : 0); glUniform1i(locUI, 0);
         // Dibujo primero la arquitectura y los modelos estaticos del estadio.
         glBindVertexArray(cuboVao);
