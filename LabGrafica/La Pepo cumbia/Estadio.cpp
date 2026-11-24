@@ -1817,7 +1817,7 @@ void main() {
         // El equipo defensor cubre carriles; su portero activa la pose de atajada.
         // Durante el prepartido el visitante aun viene en camino; EntradaEquipo lo dibuja.
         entrada.dibujarVisitantes([&](const glm::vec3& p, float rumbo, bool camina, float fase) {
-            glm::mat4 raizVisita = crearRaizJugador(p, rumbo);
+            glm::mat4 raizVisita = crearRaizJugador(p, rumbo, 3.2f);
             if (camina) dibujaJugadorCorriendo(raizVisita, colorCruzAzul, texturaCruzAzul, fase, 0.0f);
             else dibujaJugadorCompleto(raizVisita, colorCruzAzul, texturaCruzAzul);
             });
