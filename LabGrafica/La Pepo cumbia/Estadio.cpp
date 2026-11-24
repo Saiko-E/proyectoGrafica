@@ -792,6 +792,12 @@ void tecla(GLFWwindow* w, int key, int, int action, int) {
             if (camaraLibre) { posicionCamaraLibre = glm::vec3(0.0f, 48.0f, 112.0f); anguloMouseX = -90.0f; anguloMouseY = -22.0f; }
         }
         if (key == GLFW_KEY_T) { camaraAutobus = !camaraAutobus; primeraPersona = false; camaraLibre = false; }
+        // 0 activa la camara libre (sin alternar) y 9 regresa a la camara predeterminada de seguimiento.
+        if (key == GLFW_KEY_0 || key == GLFW_KEY_KP_0) {
+            if (!camaraLibre) { posicionCamaraLibre = glm::vec3(0.0f, 48.0f, 112.0f); anguloMouseX = -90.0f; anguloMouseY = -22.0f; }
+            camaraLibre = true; primeraPersona = false; camaraAutobus = false;
+        }
+        if (key == GLFW_KEY_9 || key == GLFW_KEY_KP_9) { camaraLibre = false; primeraPersona = false; camaraAutobus = false; }
         if (key == GLFW_KEY_B) { posicionAutobus = glm::vec3(-78.0f, 0.0f, 48.0f); rumboAutobus = 90.0f; }
         if (key == GLFW_KEY_F) reflectores = !reflectores;
         if (key == GLFW_KEY_G) { golesLocal = (golesLocal + 1) % 100; std::cout << "Marcador local: " << golesLocal << " - visitante: " << golesVisita << std::endl; }
@@ -890,7 +896,7 @@ int main() {
     if (!window) { glfwTerminate(); return -1; } // Libero GLFW si no se pudo abrir la ventana.
     glfwMakeContextCurrent(window); glfwSwapInterval(1); glewExperimental = GL_TRUE;
     if (glewInit() != GLEW_OK) { glfwDestroyWindow(window); glfwTerminate(); return -1; } // GLEW habilita las funciones de OpenGL usadas en el proyecto.
-    std::cout << "Controles: WASD jugador/camara libre | J pase | K tiro | I/O apuntar | espacio jugada por keyframes | N devolver balon sin borrar marcador | mouse mirar/orbitar | C camara libre (E/Q altura) | V primera/tercera persona | rueda o RePág/AvPág zoom | T camara autobus | flechas conducir autobus | G/H marcador | R reiniciar marcador | F reflectores | B autobus | ESC salir" << std::endl;
+    std::cout << "Controles: WASD jugador/camara libre | J pase | K tiro | I/O apuntar | espacio jugada por keyframes | N devolver balon sin borrar marcador | mouse mirar/orbitar | C camara libre (E/Q altura) | 0 camara libre | 9 camara predeterminada | V primera/tercera persona | rueda o RePág/AvPág zoom | T camara autobus | flechas conducir autobus | G/H marcador | R reiniciar marcador | F reflectores | B autobus | ESC salir" << std::endl;
     glfwSetFramebufferSizeCallback(window, cambiarTamano); glfwSetKeyCallback(window, tecla); glfwSetCursorPosCallback(window, cursor); glfwSetScrollCallback(window, rueda);
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED); glEnable(GL_DEPTH_TEST); glDisable(GL_CULL_FACE);
 
