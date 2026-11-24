@@ -15,6 +15,7 @@ map_Bump textures/goyo_normal.png
 
 newmtl Goyo_oro
 Ns 64.0
+Pm 0.90
 Ka 1.0 1.0 1.0
 Kd 1.0000 0.4800 0.0180
 Ks 0.5 0.5 0.5
@@ -80,6 +81,7 @@ map_Bump textures/goyo_normal.png
 
 newmtl Goyo_oro_franja
 Ns 64.0
+Pm 0.90
 Ka 1.0 1.0 1.0
 Kd 1.0000 0.4800 0.0180
 Ks 0.5 0.5 0.5

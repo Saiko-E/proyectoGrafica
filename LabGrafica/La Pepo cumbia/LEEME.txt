@@ -1,0 +1,55 @@
+LA PEPO CUMBIA - ESTADIO INTERACTIVO (OpenGL 3.3 / GLSL 330)
+============================================================
+
+Requisitos
+----------
+- Windows 10/11 de 64 bits y una tarjeta de video con OpenGL 3.3 o superior.
+- Para compilar: Visual Studio 2022 o posterior con "Desarrollo para el escritorio con C++".
+  Las bibliotecas GLEW, GLFW y GLM se instalan solas con vcpkg (LabGrafica/vcpkg.json).
+
+Compilar y ejecutar
+-------------------
+1. Abrir LabGrafica/La Pepo cumbia.sln.
+2. Elegir la configuracion Release | x64 y presionar F5.
+3. El programa se ejecuta desde la carpeta "La Pepo cumbia" y lee los modelos de
+   Models/Realista (OBJ, glTF, texturas y skybox). Si falta algun modelo realista usa
+   el de Models/ProyectoGrafica.
+
+Controles
+---------
+Camara y jugador
+  WASD          mover al jugador (o la camara libre)
+  Mouse         mirar / orbitar          Rueda, RePag/AvPag   zoom
+  C             camara libre (E/Q sube y baja)
+  V             primera / tercera persona
+  T             camara del autobus       Flechas   conducir el autobus     B   regresar el autobus
+  Inicio        reiniciar la camara
+
+Juego
+  J             pase                     K         tiro a gol
+  I / O         apuntar el tiro          Espacio   jugada por keyframes
+  N             devolver el balon        G / H     gol local / visitante     R   reiniciar marcador
+
+Luces (interacciones en tiempo real)
+  F             encender / apagar los reflectores del estadio
+  L             color de la luz del marcador: calida, verde, blanca, roja, apagada
+  M             dia / noche (cambia sol/luna, luz ambiental y skybox con transicion suave)
+  U             show de luces (intensidad animada en Blender: Iluminador_Estadio_Animado)
+
+Animaciones hechas en Blender
+  X             el arbitro marca falta (animacion de huesos)
+  P             el jugador de calentamiento trota o se detiene (animacion de huesos)
+  Z             repeticion del gol (trayectoria del balon de Porteria_Gol_Animada)
+
+  ESC           salir
+
+Tecnicas graficas
+-----------------
+- Iluminacion de Phong (ambiente + difusa + especular) con sol/luna, luz puntual y 4 reflectores;
+  el brillo de cada texel sale del mapa especular horneado (map_Ks).
+- Fresnel (aproximacion de Schlick) con reflejo del cube map: metales (trofeo, estructura,
+  postes) y vidrio translucido que se vuelve mas reflejante en angulos rasantes.
+- Skybox con cube map (dia y noche, renderizado en Blender con el Popocatepetl, el
+  Iztaccihuatl y la ciudad) usado tambien como environment mapping.
+- Animacion por esqueleto (skinning en el vertex shader, hasta 4 huesos por vertice) a partir
+  de archivos glTF exportados de Blender.
