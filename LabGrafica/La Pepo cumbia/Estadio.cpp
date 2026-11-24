@@ -492,9 +492,10 @@ void construirCancha()
 
 // Representacion sencilla de un objeto estatico con forma de caja.
 struct Caja { glm::vec3 centro, escala, color; };
+struct PosicionPublico { glm::vec3 posicion; float orientacion, tamano; };
 // Geometria que se envia a OpenGL y objetos auxiliares del escenario.
 std::vector<float> geometriaEscenario;
-std::vector<std::pair<glm::vec3, float>> posicionesPublico;
+std::vector<PosicionPublico> posicionesPublico;
 std::vector<Caja> cajas;
 std::vector<Caja> vallasPublicidad;
 std::vector<Caja> fondosTifo;
@@ -540,6 +541,7 @@ bool senalArbitro = false; float tiempoSenal = 0.0f;
 bool troteActivo = true; float tiempoTrote = 0.0f;
 bool repeticionGol = false; float tiempoRepeticion = 0.0f;
 float tiempoAnimacion = 0.0f;
+float tiempoCelebracionPublico = 0.0f;
 
 // Keyframes del balon: tiempo, avance entre origen y porteria, altura y desvio lateral.
 // Cada keyframe del balon especifica un instante y su posicion relativa al tiro:
@@ -711,20 +713,31 @@ void construirEscenario() {
         vertices[i + 1] += 0.06f;
     }
     glm::vec3 gris(0.28f, 0.32f, 0.38f), concreto(0.42f, 0.43f, 0.40f), blanco(0.96f);
-    // Público en anillos ovalados, siguiendo las nueve filas inferiores del OBJ.
-    for (int fila = 0; fila < 9; ++fila) {
-        int nivel = fila + 5;
-        float radioX = (77.0f + nivel * 0.9f) * ESCALA_ESTADIO;
-        float radioZ = (52.0f + nivel * 0.9f) * ESCALA_ESTADIO;
-        float altura = nivel * 0.45f * ESCALA_ESTADIO;
+    // Conserva un pasillo libre junto al campo y distribuye público en los dos niveles ovalados.
+    auto agregarAnilloPublico = [&](float radioX, float radioZ, float altura, float separacion, float tamano) {
         float perimetro = PI * (3.0f * (radioX + radioZ) - sqrt((3.0f * radioX + radioZ) * (radioX + 3.0f * radioZ)));
-        int cantidad = (int)(perimetro / 5.5f);
+        int cantidad = (int)(perimetro / separacion);
         for (int i = 0; i < cantidad; ++i) {
             float angulo = 2.0f * PI * i / cantidad;
             glm::vec3 posicion(radioX * cos(angulo), altura, radioZ * sin(angulo));
             float orientacion = glm::degrees((float)atan2(-cos(angulo), -sin(angulo)));
-            posicionesPublico.emplace_back(posicion, orientacion);
+            posicionesPublico.push_back({ posicion, orientacion, tamano });
         }
+    };
+    for (int nivel = 5; nivel <= 20; ++nivel) {
+        agregarAnilloPublico((77.0f + nivel * 0.9f) * ESCALA_ESTADIO,
+            (52.0f + nivel * 0.9f) * ESCALA_ESTADIO,
+            nivel * 0.45f * ESCALA_ESTADIO, nivel <= 13 ? 5.5f : 7.0f, 3.2f);
+    }
+    // Las filas superiores siguen la malla del OBJ hasta el borde de la cubierta.
+    for (int nivel = 1; nivel <= 19; ++nivel) {
+        float altura = (9.0f + nivel * 0.5f) * ESCALA_ESTADIO;
+        float tamano = 19.6f * ESCALA_ESTADIO - altura - 0.1f;
+        if (tamano > 3.2f) tamano = 3.2f;
+        if (tamano < 1.6f) tamano = 1.6f;
+        agregarAnilloPublico((95.0f + nivel) * ESCALA_ESTADIO,
+            (70.0f + nivel) * ESCALA_ESTADIO,
+            altura, 8.0f, tamano);
     }
     // Torre de iluminacion y luminarias encendidas/apagadas por tecla F.
     for (int lado : { -1, 1 }) {
@@ -1434,6 +1447,7 @@ void main() {
                 intensidadReflectores = 0.08f + 1.5f * glm::mix(curvaShow[k - 1].y, curvaShow[k].y, u);
             }
         }
+        tiempoCelebracionPublico = glm::max(0.0f, tiempoCelebracionPublico - dt);
         float yaw = glm::radians(anguloMouseX); glm::vec3 frente = glm::normalize(glm::vec3(cos(yaw), 0, sin(yaw)));
         glm::vec3 derecha = glm::normalize(glm::cross(frente, glm::vec3(0, 1, 0)));
         float velocidadJugador = primeraPersona ? 9.0f : 8.0f;
@@ -1506,6 +1520,7 @@ void main() {
                 if (balonEnMovimiento && cruzaLineaGol) {
                     if (fabs(posicionBalonManual.z) <= 3.65f && posicionBalonManual.y <= 2.44f) {
                         ++golesLocal;
+                        tiempoCelebracionPublico = 3.2f;
                         posicionBalonManual.x = signoPorteria * 34.2f;
                         std::cout << "GOOOL. Marcador local: " << golesLocal << " - visitante: " << golesVisita << std::endl;
                     }
@@ -1542,6 +1557,7 @@ void main() {
             // El marcador cambia justo cuando el balon cruza el plano de gol.
             if (!marcadorJugadaActualizado && tiempoAnimacion >= 5.22f) {
                 golesLocal = (golesLocal + 1) % 100;
+                tiempoCelebracionPublico = 3.2f;
                 marcadorJugadaActualizado = true;
                 std::cout << "GOL. Marcador local: " << golesLocal << " - visitante: " << golesVisita << std::endl;
             }
@@ -1816,8 +1832,31 @@ void main() {
             };
         for (size_t i = 0; i < posicionesPublico.size(); ++i) {
             bool azul = i % 2 == 0;
-            dibujaJugadorCompleto(crearRaizJugador(posicionesPublico[i].first, posicionesPublico[i].second, 3.2f),
-                azul ? colorCruzAzul : colorAtlas, azul ? texturaCruzAzul : texturaAtlas);
+            const glm::vec3& uniformePublico = azul ? colorCruzAzul : colorAtlas;
+            GLuint texturaPublico = azul ? texturaCruzAzul : texturaAtlas;
+            glm::mat4 raizPublico = crearRaizJugador(posicionesPublico[i].posicion, posicionesPublico[i].orientacion, posicionesPublico[i].tamano);
+            if (tiempoCelebracionPublico > 0.0f) {
+                float fase = 3.2f - tiempoCelebracionPublico + (float)i * 0.19f;
+                float salto = fabs(sin(fase * 10.0f)) * glm::clamp(tiempoCelebracionPublico / 0.35f, 0.0f, 1.0f) * 1.15f;
+                raizPublico = glm::translate(raizPublico, glm::vec3(0.0f, salto, 0.0f));
+                modelos[CUERPO_JUGADOR].dibujarConMatriz(programaModelos, vista, proy, raizPublico, reflectores, uniformePublico, true, texturaPublico);
+                float brazosArriba = 145.0f + 15.0f * sin(fase * 10.0f);
+                glm::mat4 brazoD = giroArticulacion(hombroDer, brazosArriba, glm::vec3(0, 0, 1));
+                glm::mat4 brazoI = giroArticulacion(hombroIzq, -brazosArriba, glm::vec3(0, 0, 1));
+                glm::mat4 codoD = giroArticulacion(codoDer, -35.0f, glm::vec3(0, 0, 1));
+                glm::mat4 codoI = giroArticulacion(codoIzq, 35.0f, glm::vec3(0, 0, 1));
+                auto dibujaPiezaPublico = [&](int pieza, const glm::mat4& matriz) {
+                    modelos[pieza].dibujarConMatriz(programaModelos, vista, proy, matriz, reflectores, uniformePublico, true, texturaPublico);
+                };
+                dibujaPiezaPublico(BRAZO_SUP_DER, raizPublico * brazoD);
+                dibujaPiezaPublico(BRAZO_INF_DER, raizPublico * brazoD * codoD);
+                dibujaPiezaPublico(BRAZO_SUP_IZQ, raizPublico * brazoI);
+                dibujaPiezaPublico(BRAZO_INF_IZQ, raizPublico * brazoI * codoI);
+                for (int pieza : { MUSLO_DER, PANTORRILLA_DER, PIE_DER, MUSLO_IZQ, PANTORRILLA_IZQ, PIE_IZQ })
+                    dibujaPiezaPublico(pieza, raizPublico);
+            } else {
+                dibujaJugadorCompleto(raizPublico, uniformePublico, texturaPublico);
+            }
         }
         if (!primeraPersona) {
             modelos[CUERPO_JUGADOR].dibujarConMatriz(programaModelos, vista, proy, raizJugador, reflectores, colorAtlas, true, texturaAtlas);
