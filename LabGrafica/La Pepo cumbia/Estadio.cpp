@@ -489,6 +489,8 @@ void construirCancha()
 
 // Representacion sencilla de un objeto estatico con forma de caja.
 struct Caja { glm::vec3 centro, escala, color; };
+// La porteria se estira en vertical para que el portero (3.2 de alto) quepa bajo el larguero.
+const float ALTURA_PORTERIA = 1.5f;
 struct PosicionPublico { glm::vec3 posicion; float orientacion, tamano; };
 // Geometria que se envia a OpenGL y objetos auxiliares del escenario.
 std::vector<float> geometriaEscenario;
@@ -526,6 +528,12 @@ int ladoPorteroReacciona = 0;
 glm::vec3 posicionAutobus(-78.0f, 0.0f, 48.0f);
 float rumboAutobus = 90.0f;
 bool camaraAutobus = false;
+// Dron con camara (tecla 1): sigue el balon, se controla con WASD/Q/E y se estabiliza al soltar los mandos.
+bool camaraDron = false;
+bool camaraTv = false;   // tecla 2: vista desde la camara fisica de la banda
+glm::vec3 posicionDron(-14.0f, 13.0f, -27.0f), velocidadDron(0.0f);
+// Intensidad de los reflectores (flechas arriba/abajo cuando no se conduce el autobus).
+float intensidadReflectores = 1.0f;
 // Prepartido (Auto.h): mientras llega el visitante se bloquean las jugadas; ENTER lo salta.
 bool prepartidoActivo = false, saltarPrepartido = false;
 glm::vec3 arbitro(7.0f, 0.0f, -4.0f);
@@ -713,26 +721,23 @@ void construirEscenario() {
             posicionesPublico.push_back({ posicion, orientacion, tamano });
         }
     };
-    for (int nivel = 5; nivel <= 20; ++nivel) {
+    for (int nivel = 5; nivel <= 20; nivel += 2) {   // filas alternas: menos publico = menos draw calls
         agregarAnilloPublico((77.0f + nivel * 0.9f) * ESCALA_ESTADIO,
             (52.0f + nivel * 0.9f) * ESCALA_ESTADIO,
-            nivel * 0.45f * ESCALA_ESTADIO, nivel <= 13 ? 5.5f : 7.0f, 3.2f);
+            nivel * 0.45f * ESCALA_ESTADIO, nivel <= 13 ? 9.0f : 11.0f, 3.2f);
     }
     // Las filas superiores siguen la malla del OBJ hasta el borde de la cubierta.
-    for (int nivel = 1; nivel <= 19; ++nivel) {
+    for (int nivel = 1; nivel <= 19; nivel += 2) {
         float altura = (9.0f + nivel * 0.5f) * ESCALA_ESTADIO;
         float tamano = 19.6f * ESCALA_ESTADIO - altura - 0.1f;
         if (tamano > 3.2f) tamano = 3.2f;
         if (tamano < 1.6f) tamano = 1.6f;
         agregarAnilloPublico((95.0f + nivel) * ESCALA_ESTADIO,
             (70.0f + nivel) * ESCALA_ESTADIO,
-            altura, 8.0f, tamano);
+            altura, 12.0f, tamano);
     }
     // Torre de iluminacion y luminarias encendidas/apagadas por tecla F.
-    for (int lado : { -1, 1 }) {
-        agregarCaja(lado * 58.0f, 17.0f, 0, 0.8f, 34, 0.8f, concreto);
-        for (int j = 0;j < 5;++j) agregarCaja(lado * 58.0f, 34.0f, (-2.0f + j) * 1.3f, 1.5f, 0.8f, 1.0f, reflectores ? glm::vec3(1.0f, 0.92f, 0.55f) : gris);
-    }
+    // Las torres laterales de iluminacion se eliminaron: la luz viene de los reflectores del estadio.
     // Zona 3: bancas/calentamiento y cabinas en las cabeceras.
     for (int lado = -1;lado <= 1;lado += 2) {
         for (int i = 0;i < 8;++i) agregarCaja(-12.0f + i * 3.4f, 0.6f, lado * 59.0f, 2.8f, 1.2f, 1.0f, AZUL);
@@ -786,18 +791,20 @@ void tecla(GLFWwindow* w, int key, int, int action, int) {
     }
     if (action == GLFW_PRESS) {
         // Al cambiar de modo, apago los otros seguimientos para que solo haya una camara activa.
-        if (key == GLFW_KEY_V) { primeraPersona = !primeraPersona; camaraLibre = false; camaraAutobus = false; }
+        if (key == GLFW_KEY_V) { primeraPersona = !primeraPersona; camaraLibre = false; camaraAutobus = false; camaraDron = false; camaraTv = false; }
+        if (key == GLFW_KEY_1 || key == GLFW_KEY_KP_1) { camaraDron = !camaraDron; if (camaraDron) { camaraTv = false; camaraLibre = false; primeraPersona = false; camaraAutobus = false; } }
+        if (key == GLFW_KEY_2 || key == GLFW_KEY_KP_2) { camaraTv = !camaraTv; if (camaraTv) { camaraDron = false; camaraLibre = false; primeraPersona = false; camaraAutobus = false; } }
         if (key == GLFW_KEY_C) {
-            camaraLibre = !camaraLibre; primeraPersona = false; camaraAutobus = false;
+            camaraLibre = !camaraLibre; primeraPersona = false; camaraAutobus = false; camaraDron = false; camaraTv = false;
             if (camaraLibre) { posicionCamaraLibre = glm::vec3(0.0f, 48.0f, 112.0f); anguloMouseX = -90.0f; anguloMouseY = -22.0f; }
         }
-        if (key == GLFW_KEY_T) { camaraAutobus = !camaraAutobus; primeraPersona = false; camaraLibre = false; }
+        if (key == GLFW_KEY_T) { camaraAutobus = !camaraAutobus; primeraPersona = false; camaraLibre = false; camaraDron = false; camaraTv = false; }
         // 0 activa la camara libre (sin alternar) y 9 regresa a la camara predeterminada de seguimiento.
         if (key == GLFW_KEY_0 || key == GLFW_KEY_KP_0) {
             if (!camaraLibre) { posicionCamaraLibre = glm::vec3(0.0f, 48.0f, 112.0f); anguloMouseX = -90.0f; anguloMouseY = -22.0f; }
-            camaraLibre = true; primeraPersona = false; camaraAutobus = false;
+            camaraLibre = true; primeraPersona = false; camaraAutobus = false; camaraDron = false; camaraTv = false;
         }
-        if (key == GLFW_KEY_9 || key == GLFW_KEY_KP_9) { camaraLibre = false; primeraPersona = false; camaraAutobus = false; }
+        if (key == GLFW_KEY_9 || key == GLFW_KEY_KP_9) { camaraLibre = false; primeraPersona = false; camaraAutobus = false; camaraDron = false; camaraTv = false; }
         if (key == GLFW_KEY_B) { posicionAutobus = glm::vec3(-78.0f, 0.0f, 48.0f); rumboAutobus = 90.0f; }
         if (key == GLFW_KEY_F) reflectores = !reflectores;
         if (key == GLFW_KEY_G) { golesLocal = (golesLocal + 1) % 100; std::cout << "Marcador local: " << golesLocal << " - visitante: " << golesVisita << std::endl; }
@@ -896,7 +903,7 @@ int main() {
     if (!window) { glfwTerminate(); return -1; } // Libero GLFW si no se pudo abrir la ventana.
     glfwMakeContextCurrent(window); glfwSwapInterval(1); glewExperimental = GL_TRUE;
     if (glewInit() != GLEW_OK) { glfwDestroyWindow(window); glfwTerminate(); return -1; } // GLEW habilita las funciones de OpenGL usadas en el proyecto.
-    std::cout << "Controles: WASD jugador/camara libre | J pase | K tiro | I/O apuntar | espacio jugada por keyframes | N devolver balon sin borrar marcador | mouse mirar/orbitar | C camara libre (E/Q altura) | 0 camara libre | 9 camara predeterminada | V primera/tercera persona | rueda o RePág/AvPág zoom | T camara autobus | flechas conducir autobus | G/H marcador | R reiniciar marcador | F reflectores | B autobus | ESC salir" << std::endl;
+    std::cout << "Controles: WASD jugador/camara libre | J pase | K tiro | I/O apuntar | espacio jugada por keyframes | N devolver balon sin borrar marcador | mouse mirar/orbitar | C camara libre (E/Q altura) | 0 camara libre | 9 camara predeterminada | V primera/tercera persona | rueda o RePág/AvPág zoom | 1 camara del dron (WASD/Q/E/Shift lo pilotan) | 2 camara fisica de la banda | T camara autobus | T + flechas arriba/abajo conducir autobus | flechas arriba/abajo intensidad de reflectores | G/H marcador | R reiniciar marcador | F reflectores | B autobus | ESC salir" << std::endl;
     glfwSetFramebufferSizeCallback(window, cambiarTamano); glfwSetKeyCallback(window, tecla); glfwSetCursorPosCallback(window, cursor); glfwSetScrollCallback(window, rueda);
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED); glEnable(GL_DEPTH_TEST); glDisable(GL_CULL_FACE);
 
@@ -917,6 +924,7 @@ uniform int lamps;
 uniform int uiMode;
 uniform vec3 spotPos[4];
 uniform vec3 spotDir[4];
+uniform float spotIntensity;
 uniform sampler2D grassTexture;
 out vec4 color;
 
@@ -935,7 +943,7 @@ float stadiumLight(vec3 normal) {
             float beam = smoothstep(0.28, 0.78, cone);
             float diffuse = max(dot(normal, normalize(-ray)), 0.0);
             float attenuation = 1.0 / (1.0 + 0.006 * d + 0.00025 * d * d);
-            result += beam * diffuse * 1.8 * attenuation;
+            result += beam * diffuse * 1.8 * attenuation * spotIntensity;
         }
     }
     return clamp(result, 0.20, 1.55);
@@ -1105,10 +1113,12 @@ uniform int teamColorable;
 uniform int hasTexture;
 uniform float materialAlpha;   // 'd' del MTL (vidrio, policarbonato); 1 = opaco
 uniform int lamps;
+uniform int emisivo;           // 1 = los texels brillantes se dibujan como LED (sin sombreado)
 uniform vec3 pointLightPos;
 uniform vec3 pointLightColor;
 uniform vec3 spotPos[4];
 uniform vec3 spotDir[4];
+uniform float spotIntensity;
 out vec4 fragColor;
 
 // Ruido pseudoaleatorio por celda para evitar que los materiales arquitectonicos
@@ -1188,9 +1198,15 @@ void main() {
         float cone = dot(normalize(ray), normalize(spotDir[i]));
         float beam = smoothstep(0.28, 0.78, cone);
         float diffuse = max(dot(normal, normalize(-ray)), 0.0);
-        illumination += beam * diffuse * 2.0 / (1.0 + 0.006 * d + 0.00025 * d * d);
+        illumination += beam * diffuse * 2.0 * spotIntensity / (1.0 + 0.006 * d + 0.00025 * d * d);
     }
-    fragColor = vec4(base * clamp(illumination, 0.20, 1.55) + aportePuntual, materialAlpha);
+    vec3 lit = base * clamp(illumination, 0.20, 1.55) + aportePuntual;
+    if (emisivo == 1 && hasTexture == 1) {
+        // Los digitos/textos del marcador son los texels claros: se auto-iluminan como LED.
+        float led = smoothstep(0.60, 0.82, max(base.r, max(base.g, base.b)));
+        lit = mix(lit, base * 1.9, led);
+    }
+    fragColor = vec4(lit, materialAlpha);
 }
 )GLSL";
     const char* mv = vertexModelo.c_str(); const char* mf = fragmentModelo.c_str(); glShaderSource(modeloVS, 1, &mv, nullptr); glShaderSource(modeloFS, 1, &mf, nullptr); glCompileShader(modeloVS); glCompileShader(modeloFS);
@@ -1202,6 +1218,7 @@ void main() {
     glUniform3f(glGetUniformLocation(programaModelos, "pointLightColor"), 1.0f, 0.72f, 0.38f);
     glUniform1f(glGetUniformLocation(programaModelos, "materialAlpha"), 1.0f);
     glUseProgram(programa);
+    const GLint locEmisivo = glGetUniformLocation(programaModelos, "emisivo");
 
     struct Instancia { size_t modelo; glm::vec3 posicion; float tamano; float rotacion; float inclinacion; };
     // 6. Mantengo las rutas de los recursos en un solo arreglo para facilitar
@@ -1279,6 +1296,12 @@ void main() {
         if (!modelos.back().cargar(rutaJugador, filtrosArticulados[i]))
             std::cerr << "No se pudo cargar una parte articulada del jugador: " << filtrosArticulados[i] << std::endl;
     }
+    // Camara de transmision fisica (base + cabeza giratoria) junto a la linea de banda; sigue al balon.
+    ModeloOBJ camaraTvBase, camaraTvCabeza;
+    const bool camaraTvLista = camaraTvBase.cargar("Models/Realista/camara_tv/cameraBase.obj") & camaraTvCabeza.cargar("Models/Realista/camara_tv/cameraHead.obj");
+    if (!camaraTvLista) std::cerr << "No se pudo cargar Models/Realista/camara_tv" << std::endl;
+    const glm::vec3 posicionCamaraTv(-22.0f, 0.0f, -25.8f), pivoteCamaraTv(0.0f, 8.837823f, 0.0f);
+    const float escalaCamaraTv = 0.35f;
     // Cada instancia combina el indice del modelo con posicion, escala y orientacion.
     std::vector<Instancia> instancias;
     auto instancia = [&](size_t m, glm::vec3 p, float s, float r = 0.0f, float x = 0.0f) { instancias.push_back({ m,p,s,r,x }); };
@@ -1297,7 +1320,8 @@ void main() {
     // Porterias centradas en las lineas de fondo; la boca queda transversal al largo del campo.
     instancia(11, glm::vec3(-33.4f, 0, 0), 8, 90); instancia(11, glm::vec3(33.4f, 0, 0), 8, -90);
     // Bancas de suplentes fuera de la linea lateral, una por equipo.
-    instancia(12, glm::vec3(0, 0.15f, -27), 5.0f, 90); instancia(13, glm::vec3(0, 0.15f, 27), 5.0f, 270);
+    // El modelo tiene la abertura hacia +X: se gira para que mire al campo (antes estaban volteadas hacia afuera).
+    instancia(12, glm::vec3(0, 0.15f, -27), 8.5f, 270); instancia(13, glm::vec3(0, 0.15f, 27), 8.5f, 90);
     // El carrito de comida va en la grada interior, elevado sobre el borde de la cancha.
     instancia(14, glm::vec3(-0, 7, 48), 4.0f); instancia(15, glm::vec3(-14, 0, 23), 2.4f);
     // Cuatro banderas sobre las esquinas reales del terreno.
@@ -1322,8 +1346,30 @@ void main() {
             glUniform3fv(glGetUniformLocation(programaActivo, nombrePos.c_str()), 1, glm::value_ptr(posicionesSpot[i]));
             glUniform3fv(glGetUniformLocation(programaActivo, nombreDir.c_str()), 1, glm::value_ptr(direccionesSpot[i]));
         }
+        glUniform1f(glGetUniformLocation(programaActivo, "spotIntensity"), intensidadReflectores);
         };
+    // Posicion actual del balon (jugada animada, juego libre o junto al jugador); la usan el dibujo y las camaras.
+    auto posicionBalonActual = [&]() -> glm::vec3 {
+        float avance = keyframesBalon[0].avance, altura = keyframesBalon[0].altura, lateral = keyframesBalon[0].lateral;
+        if (animando || jugadaTerminada) for (size_t k = 0;k + 1 < sizeof(keyframesBalon) / sizeof(keyframesBalon[0]);++k) if (tiempoAnimacion >= keyframesBalon[k].tiempo && tiempoAnimacion <= keyframesBalon[k + 1].tiempo) {
+            float u = (tiempoAnimacion - keyframesBalon[k].tiempo) / (keyframesBalon[k + 1].tiempo - keyframesBalon[k].tiempo);
+            u = u * u * (3.0f - 2.0f * u);
+            avance = glm::mix(keyframesBalon[k].avance, keyframesBalon[k + 1].avance, u);
+            altura = glm::mix(keyframesBalon[k].altura, keyframesBalon[k + 1].altura, u);
+            lateral = glm::mix(keyframesBalon[k].lateral, keyframesBalon[k + 1].lateral, u); break;
+        }
+        // Antes de iniciar, el balon acompana al jugador; durante la secuencia
+        // parte del punto guardado y sigue la trayectoria interpolada.
+        glm::vec3 origenBalon = (animando || jugadaTerminada) ? inicioJugada : jugador;
+        glm::vec3 balon = origenBalon + direccionTiro * (avance * distanciaJugada) + glm::vec3(0, altura, 0) + lateralJugada * lateral;
+        // En modo de juego libre, el balon usa su posicion fisica independiente;
+        // si se recupera, vuelve a acompañar al jugador.
+        if (balonLibre && !animando) balon = posicionBalonManual;
+        return balon;
+    };
     glUseProgram(programa); glUniform1i(glGetUniformLocation(programa, "grassTexture"), 0);
+    glm::vec3 balonSeguido(0.0f, 0.22f, 0.0f);
+    float relojDron = 0.0f;
     double anterior = glfwGetTime();
     // 7. Ciclo principal: mido el tiempo, proceso entrada, actualizo estado y dibujo.
     while (!glfwWindowShouldClose(window)) {
@@ -1338,8 +1384,14 @@ void main() {
         if (teclas[GLFW_KEY_RIGHT]) rumboAutobus += giroAutobus * dt;
         float rumboRad = glm::radians(rumboAutobus);
         glm::vec3 frenteAutobus(std::sin(rumboRad), 0.0f, std::cos(rumboRad));
-        if (teclas[GLFW_KEY_UP]) posicionAutobus += frenteAutobus * velocidadAutobus * dt;
-        if (teclas[GLFW_KEY_DOWN]) posicionAutobus -= frenteAutobus * velocidadAutobus * dt;
+        // Flechas arriba/abajo: conducen el autobus solo en su camara (T); en las demas regulan los reflectores.
+        if (camaraAutobus) {
+            if (teclas[GLFW_KEY_UP]) posicionAutobus += frenteAutobus * velocidadAutobus * dt;
+            if (teclas[GLFW_KEY_DOWN]) posicionAutobus -= frenteAutobus * velocidadAutobus * dt;
+        } else {
+            if (teclas[GLFW_KEY_UP]) intensidadReflectores = glm::min(2.5f, intensidadReflectores + 0.8f * dt);
+            if (teclas[GLFW_KEY_DOWN]) intensidadReflectores = glm::max(0.0f, intensidadReflectores - 0.8f * dt);
+        }
         // Limites exteriores para mantenerlo recorriendo el estadio y evitar perderlo de vista.
         posicionAutobus.x = glm::clamp(posicionAutobus.x, -88.0f, 88.0f);
         posicionAutobus.z = glm::clamp(posicionAutobus.z, -76.0f, 76.0f);
@@ -1361,7 +1413,7 @@ void main() {
             if (teclas[GLFW_KEY_Q]) posicionCamaraLibre.y -= dt * velocidadCamaraLibre;
             posicionCamaraLibre.y = glm::max(2.0f, posicionCamaraLibre.y);
         }
-        else if (!animando && !prepartidoActivo) {
+        else if (!animando && !prepartidoActivo && !camaraDron) {
             if (teclas[GLFW_KEY_W]) jugador += frente * dt * velocidadJugador;
             if (teclas[GLFW_KEY_S]) jugador -= frente * dt * velocidadJugador;
             if (teclas[GLFW_KEY_A]) jugador -= derecha * dt * velocidadJugador;
@@ -1390,7 +1442,7 @@ void main() {
                     : posicionAnterior.x > planoPortero && posicionBalonManual.x <= planoPortero;
                 // Una pelota que pasa por el centro y a una altura alcanzable
                 // activa una atajada; tiros laterales pueden superar al portero.
-                if (cruzaPortero && fabs(posicionBalonManual.z) < 1.45f && posicionBalonManual.y < 2.25f) {
+                if (cruzaPortero && fabs(posicionBalonManual.z) < 1.45f && posicionBalonManual.y < 3.4f) {
                     posicionBalonManual.x = planoPortero - signoPorteria * 0.25f;
                     velocidadBalonManual = glm::vec3(0.0f);
                     balonEnMovimiento = false;
@@ -1402,7 +1454,7 @@ void main() {
                     ? posicionAnterior.x < 33.4f && posicionBalonManual.x >= 33.4f
                     : posicionAnterior.x > -33.4f && posicionBalonManual.x <= -33.4f;
                 if (balonEnMovimiento && cruzaLineaGol) {
-                    if (fabs(posicionBalonManual.z) <= 3.65f && posicionBalonManual.y <= 2.44f) {
+                    if (fabs(posicionBalonManual.z) <= 3.65f && posicionBalonManual.y <= 3.9f) {
                         ++golesLocal;
                         tiempoCelebracionPublico = 3.2f;
                         posicionBalonManual.x = signoPorteria * 34.2f;
@@ -1447,9 +1499,48 @@ void main() {
             }
             if (tiempoAnimacion >= 6.5f) { tiempoAnimacion = 6.5f; animando = false; jugadaTerminada = true; }
         }
-        // Seleccion de camara: primera persona, libre o seguimiento del jugador/autobus.
+        // El objetivo de las camaras de transmision se suaviza para que no den tirones con el balon.
+        balonSeguido = glm::mix(balonSeguido, posicionBalonActual(), 1.0f - std::exp(-5.0f * dt));
+        relojDron += dt;
+        {
+            glm::vec3 haciaBalon = balonSeguido - posicionDron; haciaBalon.y = 0.0f;
+            if (glm::dot(haciaBalon, haciaBalon) < 0.001f) haciaBalon = glm::vec3(1.0f, 0.0f, 0.0f);
+            glm::vec3 adelanteDron = glm::normalize(haciaBalon), derechaDron = glm::normalize(glm::cross(adelanteDron, glm::vec3(0, 1, 0)));
+            glm::vec3 mando(0.0f);
+            if (camaraDron) {
+                if (teclas[GLFW_KEY_W]) mando += adelanteDron;
+                if (teclas[GLFW_KEY_S]) mando -= adelanteDron;
+                if (teclas[GLFW_KEY_D]) mando += derechaDron;
+                if (teclas[GLFW_KEY_A]) mando -= derechaDron;
+                if (teclas[GLFW_KEY_E]) mando.y += 1.0f;
+                if (teclas[GLFW_KEY_Q]) mando.y -= 1.0f;
+            }
+            float velocidadMaxDron = (teclas[GLFW_KEY_LEFT_SHIFT] || teclas[GLFW_KEY_RIGHT_SHIFT]) ? 22.0f : 11.0f;
+            if (glm::dot(mando, mando) > 0.0f) mando = glm::normalize(mando);
+            // Suavizo la velocidad: el dron acelera y frena con inercia, y al soltar los mandos queda en vuelo estacionario.
+            velocidadDron = glm::mix(velocidadDron, mando * velocidadMaxDron, 1.0f - std::exp(-5.0f * dt));
+            posicionDron += velocidadDron * dt;
+            posicionDron.x = glm::clamp(posicionDron.x, -55.0f, 55.0f);
+            posicionDron.y = glm::clamp(posicionDron.y, 6.0f, 30.0f);
+            posicionDron.z = glm::clamp(posicionDron.z, -38.0f, 38.0f);
+        }
+        // Seleccion de camara: dron, primera persona, libre o seguimiento del jugador/autobus.
         glm::vec3 posCam, objetivo;
-        if (primeraPersona) { posCam = jugador + glm::vec3(0, 1.7f, 0); float pitch = glm::radians(anguloMouseY); glm::vec3 f = glm::normalize(glm::vec3(cos(yaw) * cos(pitch), sin(pitch), sin(yaw) * cos(pitch))); objetivo = posCam + f; }
+        if (camaraDron) {
+            glm::vec3 h = balonSeguido - posicionDron; h.y = 0.0f;
+            if (glm::dot(h, h) < 0.001f) h = glm::vec3(1.0f, 0.0f, 0.0f);
+            // Camara estabilizada (gimbal): mira siempre al balon aunque el dron se incline.
+            posCam = posicionDron + glm::normalize(h) * 3.2f + glm::vec3(0.0f, -1.15f + 0.12f * std::sin(relojDron * 2.0f) * 1.6f, 0.0f);
+            objetivo = balonSeguido;
+        }
+        else if (camaraTv) {
+            // Vista desde la camara de la banda: justo delante de su lente, apuntando al balon.
+            glm::vec3 pivoteMundo = posicionCamaraTv + escalaCamaraTv * pivoteCamaraTv;
+            glm::vec3 d = balonSeguido - pivoteMundo; if (glm::dot(d, d) < 0.0001f) d = glm::vec3(1.0f, 0.0f, 0.0f);
+            posCam = pivoteMundo + glm::normalize(d) * 1.5f;
+            objetivo = balonSeguido;
+        }
+        else if (primeraPersona) { posCam = jugador + glm::vec3(0, 1.7f, 0); float pitch = glm::radians(anguloMouseY); glm::vec3 f = glm::normalize(glm::vec3(cos(yaw) * cos(pitch), sin(pitch), sin(yaw) * cos(pitch))); objetivo = posCam + f; }
         else if (camaraLibre) { posCam = posicionCamaraLibre; float pitch = glm::radians(anguloMouseY); glm::vec3 f = glm::normalize(glm::vec3(cos(yaw) * cos(pitch), sin(pitch), sin(yaw) * cos(pitch))); objetivo = posCam + f; }
         else {
             glm::vec3 centroCamaraJugada = (animando || jugadaTerminada) ? glm::mix(inicioJugada, objetivoJugada, glm::clamp(tiempoAnimacion / 5.8f, 0.0f, 1.0f)) : jugador;
@@ -1459,7 +1550,7 @@ void main() {
         }
         // Construyo las matrices de vista y perspectiva para proyectar la escena.
         glm::mat4 vista = glm::lookAt(posCam, objetivo, glm::vec3(0, 1, 0)); int ww, hh; glfwGetFramebufferSize(window, &ww, &hh); if (hh == 0) hh = 1;
-        glm::mat4 proy = glm::perspective(glm::radians(campoVision), (float)ww / hh, 0.1f, 520.0f);
+        glm::mat4 proy = glm::perspective(glm::radians(camaraDron ? 54.0f : (camaraTv ? 32.0f : campoVision)), (float)ww / hh, 0.1f, 520.0f);
         glViewport(0, 0, ww, hh); glClearColor(0.015f, 0.035f, 0.08f, 1); glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         // El cielo va primero y sin profundidad, para que toda la escena quede por delante.
         glUseProgram(programaCielo);
@@ -1487,8 +1578,26 @@ void main() {
                 instanciaAnimada.rotacion += 2.2f * vibracion;
                 instanciaAnimada.inclinacion += 1.5f * vibracion;
             }
+            const bool esMarcador = item.modelo == 3;
+            if (esMarcador) glUniform1i(locEmisivo, 1);
             modelos[instanciaAnimada.modelo].dibujar(programaModelos, vista, proy, instanciaAnimada.posicion,
-                instanciaAnimada.tamano, instanciaAnimada.rotacion, reflectores, instanciaAnimada.inclinacion);
+                instanciaAnimada.tamano, instanciaAnimada.rotacion, reflectores, instanciaAnimada.inclinacion,
+                item.modelo == 11 ? ALTURA_PORTERIA : 1.0f);
+            if (esMarcador) glUniform1i(locEmisivo, 0);
+        }
+        // Camara de transmision: la cabeza gira (yaw/pitch) para apuntar al balon.
+        if (camaraTvLista) {
+            glm::mat4 baseTv = glm::scale(glm::translate(glm::mat4(1.0f), posicionCamaraTv), glm::vec3(escalaCamaraTv));
+            glm::vec3 pivoteMundo = posicionCamaraTv + escalaCamaraTv * pivoteCamaraTv;
+            glm::vec3 haciaBalon = balonSeguido - pivoteMundo;
+            float horizontal = glm::length(glm::vec2(haciaBalon.x, haciaBalon.z));
+            float giroTv = std::atan2(-haciaBalon.z, haciaBalon.x);
+            float cabeceoTv = glm::clamp(std::atan2(haciaBalon.y, glm::max(0.0001f, horizontal)), glm::radians(-65.0f), glm::radians(65.0f));
+            glm::mat4 cabezaTv = glm::translate(baseTv, pivoteCamaraTv);
+            cabezaTv = glm::rotate(cabezaTv, giroTv, glm::vec3(0, 1, 0));
+            cabezaTv = glm::rotate(cabezaTv, cabeceoTv, glm::vec3(0, 0, 1));
+            camaraTvBase.dibujarConMatriz(programaModelos, vista, proy, baseTv, reflectores);
+            camaraTvCabeza.dibujarConMatriz(programaModelos, vista, proy, cabezaTv, reflectores);
         }
         // Autobus y carrito medico de EntradaEquipo, con el mismo shader de modelos.
         entrada.dibujarVehiculos(programaModelos, vista, proy, reflectores);
@@ -1514,6 +1623,35 @@ void main() {
         glUseProgram(programa); glUniform1i(locField, 0); glBindVertexArray(cuboVao);
         for (const Caja& panel : vallasPublicidad) dibujaParte(panel.centro, panel.escala, panel.color, glm::mat4(1.0f));
         for (const Caja& panio : fondosTifo) dibujaParte(panio.centro, panio.escala, panio.color, glm::mat4(1.0f));
+        // Dron: cuerpo, brazos, motores y aspas que giran. Se inclina segun su velocidad y se estabiliza al frenar.
+        if (!camaraDron) {
+            glm::vec3 h = balonSeguido - posicionDron; h.y = 0.0f;
+            float rumbo = glm::dot(h, h) < 0.001f ? 0.0f : std::atan2(-h.z, h.x);
+            glm::vec3 adelante(std::cos(rumbo), 0.0f, -std::sin(rumbo)), lateral(std::sin(rumbo), 0.0f, std::cos(rumbo));
+            float cabeceo = -glm::clamp(glm::dot(velocidadDron, adelante) * 0.025f, -0.35f, 0.35f);
+            float alabeo = glm::clamp(glm::dot(velocidadDron, lateral) * 0.025f, -0.35f, 0.35f);
+            glm::mat4 d = glm::translate(glm::mat4(1.0f), posicionDron + glm::vec3(0.0f, 0.12f * std::sin(relojDron * 2.0f), 0.0f));
+            d = glm::rotate(d, rumbo, glm::vec3(0, 1, 0));
+            d = glm::rotate(d, alabeo + glm::radians(1.2f * std::sin(relojDron * 2.3f)), glm::vec3(1, 0, 0));
+            d = glm::rotate(d, cabeceo, glm::vec3(0, 0, 1));
+            d = glm::scale(d, glm::vec3(1.6f));
+            const glm::vec3 colCuerpo(0.10f, 0.11f, 0.20f), colMetal(0.55f, 0.58f, 0.62f), colAspa(0.04f), colLente(0.10f, 0.30f, 0.90f), colMotor(0.85f);
+            dibujaParte(glm::vec3(0, 0, 0), glm::vec3(1.45f, 0.32f, 0.95f), colCuerpo, d);
+            dibujaParte(glm::vec3(0.1f, 0.22f, 0), glm::vec3(0.65f, 0.13f, 0.63f), colMetal, d);
+            for (int sx = -1; sx <= 1; sx += 2) for (int sz = -1; sz <= 1; sz += 2) {
+                glm::vec3 centroRotor(sx * 1.0f, 0.10f, sz * 1.0f);
+                glm::mat4 brazo = glm::rotate(d, std::atan2(-(float)sz, (float)sx), glm::vec3(0, 1, 0));
+                dibujaParte(glm::vec3(0.69f, 0.04f, 0.0f), glm::vec3(1.46f, 0.11f, 0.13f), colMetal, brazo);
+                dibujaParte(centroRotor, glm::vec3(0.25f, 0.13f, 0.25f), colMotor, d);
+                glm::mat4 aspa = glm::translate(d, centroRotor + glm::vec3(0.0f, 0.16f, 0.0f));
+                aspa = glm::rotate(aspa, (float)(sx * sz) * relojDron * 31.0f, glm::vec3(0, 1, 0));
+                dibujaParte(glm::vec3(0), glm::vec3(1.08f, 0.035f, 0.11f), colAspa, aspa);
+                dibujaParte(glm::vec3(0), glm::vec3(0.11f, 0.035f, 1.08f), colAspa, aspa);
+                dibujaParte(glm::vec3(sx * 0.45f, -0.32f, sz * 0.32f), glm::vec3(0.10f, 0.55f, 0.10f), colMetal, d);
+            }
+            dibujaParte(glm::vec3(0.41f, -0.30f, 0.0f), glm::vec3(0.50f, 0.34f, 0.40f), colCuerpo, d);
+            dibujaParte(glm::vec3(0.68f, -0.30f, 0.0f), glm::vec3(0.16f), colLente, d);
+        }
         glUniform1i(locField, 2); glUniformMatrix4fv(locM, 1, GL_FALSE, glm::value_ptr(glm::mat4(1.0f)));
         glBindVertexArray(conosVao); glDrawArrays(GL_TRIANGLES, 0, (GLsizei)(geometriaConos.size() / 6));
         glUniform1i(locField, 0); glBindVertexArray(cuboVao);
@@ -1715,6 +1853,12 @@ void main() {
             modelos[PIE_IZQ].dibujarConMatriz(programaModelos, vista, proy, raiz * caderaI * rodillaI * tobilloI, reflectores, uniforme, true, texturaUniforme);
             };
         for (size_t i = 0; i < posicionesPublico.size(); ++i) {
+            // Frustum culling: no dibujo aficionados fuera de la pantalla (mucho mas rapido con camara libre).
+            {
+                glm::vec4 clip = proy * vista * glm::vec4(posicionesPublico[i].posicion + glm::vec3(0.0f, 2.0f, 0.0f), 1.0f);
+                const float margen = clip.w * 1.25f + 4.0f;
+                if (clip.w <= 0.0f || fabs(clip.x) > margen || fabs(clip.y) > margen) continue;
+            }
             bool azul = i % 2 == 0;
             const glm::vec3& uniformePublico = azul ? colorCruzAzul : colorAtlas;
             GLuint texturaPublico = azul ? texturaCruzAzul : texturaAtlas;
@@ -1952,34 +2096,38 @@ void main() {
         glUseProgram(programa);
         // Marcador de siete segmentos: G suma local, H suma visita, R reinicia.
         const int segmentos[10][7] = { {1,1,1,1,1,1,0},{0,1,1,0,0,0,0},{1,1,0,1,1,0,1},{1,1,1,1,0,0,1},{0,1,1,0,0,1,1},{1,0,1,1,0,1,1},{1,0,1,1,1,1,1},{1,1,1,0,0,0,0},{1,1,1,1,1,1,1},{1,1,1,1,0,1,1} };
-        // En el marcador fisico cada digito se construye con hasta siete barras.
-        auto digito = [&](int valor, float z) {
-            const float xx[7] = { 0.0f,0.78f,0.78f,0.0f,-0.78f,-0.78f,0.0f };
-            const float yy[7] = { 1.0f,0.5f,-0.5f,-1.0f,-0.5f,0.5f,0.0f };
-            for (int i = 0;i < 7;++i) if (segmentos[valor % 10][i]) {
-                bool horizontal = (i == 0 || i == 3 || i == 6);
-                dibujaParte(glm::vec3(-61.15f, 18.0f + yy[i], z + xx[i]), horizontal ? glm::vec3(0.18f, 0.18f, 1.40f) : glm::vec3(0.18f, 0.90f, 0.18f), glm::vec3(1.0f, 0.16f, 0.06f), glm::mat4(1));
-            }
+        // Marcador fisico: los digitos de la textura se tapan con un fondo negro y se dibujan
+        // los goles reales (mismas variables que el HUD) como segmentos LED en la cara del tablero.
+        {
+            const float escM = 11.0f / 13.2f;                 // escala del modelo (tamano 11 / extension 13.2)
+            const float yBase = 14.0f + 5.58f * escM;         // altura del centro del modelo en el mundo
+            const float yDigito = yBase + (7.05f - 5.58f) * escM;
+            const float xFondo = -62.0f + (0.72f - 0.2f) * escM, xLed = -62.0f + (0.78f - 0.2f) * escM;
+            const float anchoD = 0.66f, altoD = 1.12f, grosorD = 0.13f;
+            glUniform1i(locUI, 1);                             // modo sin sombreado: los LED brillan igual
+            auto fondoDigito = [&](float mx) { dibujaParte(glm::vec3(xFondo, yDigito, -mx * escM), glm::vec3(0.04f, altoD + 0.35f, anchoD + 0.35f), glm::vec3(0.015f), glm::mat4(1)); };
+            auto ledDigito = [&](int valor, float mx) {
+                const float sx[7] = { 0, anchoD / 2, anchoD / 2, 0, -anchoD / 2, -anchoD / 2, 0 };
+                const float sy[7] = { altoD / 2, altoD / 4, -altoD / 4, -altoD / 2, -altoD / 4, altoD / 4, 0 };
+                for (int i = 0;i < 7;++i) if (segmentos[valor % 10][i]) {
+                    bool horizontal = (i == 0 || i == 3 || i == 6);
+                    // El eje derecho de la cara del tablero apunta a -Z en el mundo.
+                    dibujaParte(glm::vec3(xLed, yDigito + sy[i], -mx * escM - sx[i]),
+                        horizontal ? glm::vec3(0.05f, grosorD, anchoD + grosorD) : glm::vec3(0.05f, altoD / 2 + grosorD, grosorD),
+                        glm::vec3(0.35f, 1.0f, 0.25f), glm::mat4(1));
+                }
             };
-        digito(golesLocal, -2.6f); digito(golesVisita, 2.6f);
-        dibujaParte(glm::vec3(-61.15f, 18.0f, 0), glm::vec3(0.18f, 0.20f, 0.18f), AMARILLO, glm::mat4(1));
+            // Cada marcador tiene una ranura (unidades) y, si pasa de 9, otra a su izquierda (decenas).
+            const float ranuraLocal = -3.83f, ranuraVisita = 4.0f, separacion = 1.0f;
+            fondoDigito(ranuraLocal); fondoDigito(ranuraVisita);
+            if (golesLocal >= 10) { fondoDigito(ranuraLocal - separacion); ledDigito(golesLocal / 10, ranuraLocal - separacion); }
+            if (golesVisita >= 10) { fondoDigito(ranuraVisita - separacion); ledDigito(golesVisita / 10, ranuraVisita - separacion); }
+            ledDigito(golesLocal, ranuraLocal); ledDigito(golesVisita, ranuraVisita);
+            glUniform1i(locUI, 0);
+        }
         // Busco el par de keyframes que contiene el tiempo actual e interpolo
         // avance, altura y desvio para obtener la posicion continua del balon.
-        float avance = keyframesBalon[0].avance, altura = keyframesBalon[0].altura, lateral = keyframesBalon[0].lateral;
-        if (animando || jugadaTerminada) for (size_t k = 0;k + 1 < sizeof(keyframesBalon) / sizeof(keyframesBalon[0]);++k) if (tiempoAnimacion >= keyframesBalon[k].tiempo && tiempoAnimacion <= keyframesBalon[k + 1].tiempo) {
-            float u = (tiempoAnimacion - keyframesBalon[k].tiempo) / (keyframesBalon[k + 1].tiempo - keyframesBalon[k].tiempo);
-            u = u * u * (3.0f - 2.0f * u);
-            avance = glm::mix(keyframesBalon[k].avance, keyframesBalon[k + 1].avance, u);
-            altura = glm::mix(keyframesBalon[k].altura, keyframesBalon[k + 1].altura, u);
-            lateral = glm::mix(keyframesBalon[k].lateral, keyframesBalon[k + 1].lateral, u); break;
-        }
-        // Antes de iniciar, el balon acompana al jugador; durante la secuencia
-        // parte del punto guardado y sigue la trayectoria interpolada.
-        glm::vec3 origenBalon = (animando || jugadaTerminada) ? inicioJugada : jugador;
-        glm::vec3 balon = origenBalon + direccionTiro * (avance * distanciaJugada) + glm::vec3(0, altura, 0) + lateralJugada * lateral;
-        // En modo de juego libre, el balon usa su posicion fisica independiente;
-        // si se recupera, vuelve a acompañar al jugador.
-        if (balonLibre && !animando) balon = posicionBalonManual;
+        glm::vec3 balon = posicionBalonActual();
         float rumboBalon = glm::degrees(std::atan2(direccionTiro.x, direccionTiro.z));
         float giroBalon = tiempoAnimacion < 5.22f ? tiempoAnimacion * 900.0f : 4698.0f + 90.0f * (1.0f - std::exp(-(tiempoAnimacion - 5.22f) * 5.0f));
         if (modelos[1].listo()) { glUseProgram(programaModelos); modelos[1].dibujar(programaModelos, vista, proy, balon, 0.48f, giroBalon + rumboBalon, reflectores); glUseProgram(programa); glBindVertexArray(cuboVao); }

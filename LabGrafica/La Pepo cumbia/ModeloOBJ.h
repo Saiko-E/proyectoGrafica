@@ -183,17 +183,17 @@ public:
 
     void dibujar(GLuint programa, const glm::mat4& vista, const glm::mat4& proyeccion,
                  const glm::vec3& posicion, float tamanoObjetivo, float rotacionY, bool iluminacion,
-                 float rotacionX = 0.0f) const {
+                 float rotacionX = 0.0f, float escalaVertical = 1.0f) const {
         if (!cargado) return;
         float escala = tamanoObjetivo / extensionMaxima;
         glm::mat4 modelo(1.0f);
         glm::vec3 posicionConSuelo = posicion;
         // La posición de instancia representa el contacto del modelo con el suelo.
-        posicionConSuelo.y += (centro.y - extensionMinima.y) * escala;
+        posicionConSuelo.y += (centro.y - extensionMinima.y) * escala * escalaVertical;
         modelo = glm::translate(modelo, posicionConSuelo);
         modelo = glm::rotate(modelo, glm::radians(rotacionY), glm::vec3(0, 1, 0));
         modelo = glm::rotate(modelo, glm::radians(rotacionX), glm::vec3(1, 0, 0));
-        modelo = glm::scale(modelo, glm::vec3(escala));
+        modelo = glm::scale(modelo, glm::vec3(escala, escala * escalaVertical, escala));
         modelo = glm::translate(modelo, -centro);
         dibujarConMatriz(programa, vista, proyeccion, modelo, iluminacion);
     }
@@ -203,28 +203,29 @@ public:
                           const glm::vec3& colorEquipo = glm::vec3(1.0f), bool aplicarColorEquipo = false,
                           GLuint texturaEquipo = 0) const {
         if (!cargado) return;
-        glUniformMatrix4fv(glGetUniformLocation(programa, "model"), 1, GL_FALSE, glm::value_ptr(modelo));
-        glUniformMatrix4fv(glGetUniformLocation(programa, "view"), 1, GL_FALSE, glm::value_ptr(vista));
-        glUniformMatrix4fv(glGetUniformLocation(programa, "projection"), 1, GL_FALSE, glm::value_ptr(proyeccion));
-        glUniform1i(glGetUniformLocation(programa, "lamps"), iluminacion ? 1 : 0);
-        glUniform3fv(glGetUniformLocation(programa, "teamColor"), 1, glm::value_ptr(colorEquipo));
+        const Ubicaciones& u = ubicaciones(programa);
+        glUniformMatrix4fv(u.model, 1, GL_FALSE, glm::value_ptr(modelo));
+        glUniformMatrix4fv(u.view, 1, GL_FALSE, glm::value_ptr(vista));
+        glUniformMatrix4fv(u.projection, 1, GL_FALSE, glm::value_ptr(proyeccion));
+        glUniform1i(u.lamps, iluminacion ? 1 : 0);
+        glUniform3fv(u.teamColor, 1, glm::value_ptr(colorEquipo));
         for (size_t i = 0; i < partes.size(); ++i) {
             const ParteOBJ& parte = partes[i];
             GLuint texturaActiva = aplicarColorEquipo && parte.colorEquipo && texturaEquipo ? texturaEquipo : parte.textura;
             bool reemplazarColor = aplicarColorEquipo && parte.colorEquipo && texturaActiva == 0;
-            glUniform3fv(glGetUniformLocation(programa, "materialColor"), 1, glm::value_ptr(parte.color));
-            glUniform1f(glGetUniformLocation(programa, "materialAlpha"), parte.alpha);
+            glUniform3fv(u.materialColor, 1, glm::value_ptr(parte.color));
+            glUniform1f(u.materialAlpha, parte.alpha);
             const bool transparente = parte.alpha < 0.999f;
             if (transparente) {   // vidrio/policarbonato: mezcla sin escribir profundidad
                 glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); glDepthMask(GL_FALSE);
             }
-            glUniform1i(glGetUniformLocation(programa, "teamColorable"), reemplazarColor ? 1 : 0);
-            glUniform1i(glGetUniformLocation(programa, "hasTexture"), texturaActiva != 0 ? 1 : 0);
+            glUniform1i(u.teamColorable, reemplazarColor ? 1 : 0);
+            glUniform1i(u.hasTexture, texturaActiva != 0 ? 1 : 0);
             glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, texturaActiva);
             glBindVertexArray(parte.vao); glDrawArrays(GL_TRIANGLES, 0, parte.vertices);
             if (transparente) { glDepthMask(GL_TRUE); glDisable(GL_BLEND); }
         }
-        glUniform1f(glGetUniformLocation(programa, "materialAlpha"), 1.0f);
+        glUniform1f(u.materialAlpha, 1.0f);
         glBindVertexArray(0);
     }
 
@@ -243,6 +244,21 @@ public:
     float extensionMaximaModelo() const { return extensionMaxima; }
 
 private:
+    // Ubicaciones de uniformes en cache: evita llamar a glGetUniformLocation
+    // miles de veces por cuadro (publico, jugadores, partes de cada modelo).
+    struct Ubicaciones { GLuint programa = 0; GLint model = -1, view = -1, projection = -1, lamps = -1, teamColor = -1, materialColor = -1, materialAlpha = -1, teamColorable = -1, hasTexture = -1; };
+    static const Ubicaciones& ubicaciones(GLuint programa) {
+        static Ubicaciones u;
+        if (u.programa != programa) {
+            u.programa = programa;
+            u.model = glGetUniformLocation(programa, "model"); u.view = glGetUniformLocation(programa, "view");
+            u.projection = glGetUniformLocation(programa, "projection"); u.lamps = glGetUniformLocation(programa, "lamps");
+            u.teamColor = glGetUniformLocation(programa, "teamColor"); u.materialColor = glGetUniformLocation(programa, "materialColor");
+            u.materialAlpha = glGetUniformLocation(programa, "materialAlpha"); u.teamColorable = glGetUniformLocation(programa, "teamColorable");
+            u.hasTexture = glGetUniformLocation(programa, "hasTexture");
+        }
+        return u;
+    }
     std::vector<ParteOBJ> partes;
     glm::vec3 centro;
     glm::vec3 extensionMinima;

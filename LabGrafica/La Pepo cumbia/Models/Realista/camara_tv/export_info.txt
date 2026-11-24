@@ -1,0 +1,11 @@
+Root: CINEMA_CAMERA_with_simple_tripod
+Head pivot: Cube.007
+Head meshes: 25
+Base meshes: 17
+Pivot offset (OpenGL X Y Z): -0.212115437 9.650057793 0.060050771
+Scale: 1.0 Blender unit = 1.0 OBJ unit
+Textures are referenced with relative paths: textures/*.png
+No Blender animation or absolute texture paths are included.
+
+Warnings:
+Image was unavailable; used flat color: Material.002
